@@ -20,3 +20,15 @@ def test_hybrid_retriever_returns_indexed_text():
     results = HybridRetriever(vector_store, bm25_store).search("market")
 
     assert results == ["market growth evidence"]
+
+
+def test_hybrid_retriever_fuses_vector_and_bm25_results():
+    vector_store = InMemoryVectorStore("job-2")
+    bm25_store = BM25Store()
+    vector_store.add_text("v1", "semantic revenue trend", "source-1")
+    bm25_store.add_text("b1", "exact market demand", "source-2")
+
+    results = HybridRetriever(vector_store, bm25_store).search("market demand")
+
+    assert "exact market demand" in results
+    assert len(results) == 2

@@ -1,16 +1,43 @@
 services:
-  reportforge:
+  api:
     build:
       context: .
     platform: linux/arm64
     env_file:
       - .env
+    environment:
+      ACTIVE_LLM_PROVIDER: ${ACTIVE_LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     volumes:
       - ./storage:/app/storage
     ports:
       - "8000:8000"
     command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
+  streamlit:
+    build:
+      context: .
+    platform: linux/arm64
+    env_file:
+      - .env
+    environment:
+      ACTIVE_LLM_PROVIDER: ${ACTIVE_LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - ./storage:/app/storage
+    ports:
+      - "8501:8501"
+    command: ["uv", "run", "streamlit", "run", "frontend/streamlit_app.py", "--server.address", "0.0.0.0"]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Uncomment the profile below for local Ollama testing:
   ollama:
     image: ollama/ollama:latest
     platform: linux/arm64

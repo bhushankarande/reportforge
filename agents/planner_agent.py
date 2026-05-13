@@ -1,6 +1,7 @@
 """Planner agent for report outlines."""
 
 from schemas.agent_outputs import PlannerOutput
+from orchestration.cost_tracking import CostTrackingModel
 from tools.llm.model_router import ModelRouter
 
 
@@ -13,7 +14,8 @@ class PlannerAgent:
 
     def plan(self, topic: str, report_type: str, depth: str) -> PlannerOutput:
         """Return a deterministic outline for the requested report."""
-        self.router.get_model("gemini")
+        tracked_model = CostTrackingModel(self.router.get_model("gemini"))
+        tracked_model(f"Plan {depth} {report_type} report for {topic}")
         outline = ["Executive Summary", "Key Findings", "Evidence Review", "Recommendations"]
         if depth == "deep":
             outline.insert(2, "Market and Technical Context")

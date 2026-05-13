@@ -2,6 +2,7 @@
 
 from schemas.agent_outputs import ResearchOutput
 from schemas.sources import Source
+from orchestration.cost_tracking import CostTrackingModel
 from tools.llm.model_router import ModelRouter
 
 
@@ -14,7 +15,8 @@ class ResearchAgent:
 
     def research(self, job_id: str, topic: str) -> ResearchOutput:
         """Return deterministic mock sources for zero-cost testing."""
-        self.router.get_model("gemini")
+        tracked_model = CostTrackingModel(self.router.get_model("gemini"))
+        tracked_model(f"Summarize mock research context for {topic}")
         source = Source(
             id=f"{job_id}-mock-source-1",
             job_id=job_id,

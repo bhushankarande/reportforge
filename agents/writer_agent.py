@@ -2,6 +2,7 @@
 
 from schemas.agent_outputs import WriterInput, WriterOutput
 from schemas.sources import Claim, VerificationStatus
+from orchestration.cost_tracking import CostTrackingModel
 from tools.llm.model_router import ModelRouter
 
 
@@ -14,7 +15,8 @@ class ReportWriterAgent:
 
     def write(self, writer_input: WriterInput) -> WriterOutput:
         """Write a sourced section using only supplied evidence."""
-        self.router.get_model("gemini")
+        tracked_model = CostTrackingModel(self.router.get_model("gemini"))
+        tracked_model(f"Write section {writer_input.section_title} for {writer_input.job_id}")
         evidence_text = " ".join(writer_input.evidence) or "No evidence supplied."
         content = f"## {writer_input.section_title}\n\n{evidence_text} [SourceID]"
         claim = Claim(

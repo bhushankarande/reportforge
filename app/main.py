@@ -18,7 +18,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     StorageManager().ensure()
     init_db()
+    app.state.shutting_down = False
     yield
+    app.state.shutting_down = True
 
 
 def create_app() -> FastAPI:
@@ -35,6 +37,12 @@ def create_app() -> FastAPI:
     app.include_router(sections.router)
     app.include_router(export.router)
     app.include_router(costs.router)
+    
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        """Return service health for Docker healthchecks."""
+        return {"status": "ok"}
+
     return app
 
 
