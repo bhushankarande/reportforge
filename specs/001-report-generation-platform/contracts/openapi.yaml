@@ -1,0 +1,419 @@
+openapi: 3.1.0
+info:
+  title: ReportForge API
+  version: 0.1.0
+  description: API contract for the ReportForge MVP report generation platform.
+servers:
+  - url: http://localhost:8000
+paths:
+  /jobs:
+    post:
+      summary: Submit a new report request
+      operationId: createReportJob
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [topic, type, depth]
+              properties:
+                topic:
+                  type: string
+                type:
+                  $ref: "#/components/schemas/ReportType"
+                depth:
+                  $ref: "#/components/schemas/ReportDepth"
+                urls:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "202":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateJobResponse"
+  /jobs/{id}:
+    get:
+      summary: Get full job status
+      operationId: getReportJob
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Full job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportJobDetail"
+  /jobs/{id}/progress:
+    get:
+      summary: Get lightweight progress
+      operationId: getJobProgress
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Progress snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobProgress"
+  /jobs/{id}/sections:
+    get:
+      summary: List report sections
+      operationId: listJobSections
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportSection"
+  /jobs/{id}/sources:
+    get:
+      summary: List sources for a job
+      operationId: listJobSources
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Source"
+  /jobs/{id}/regenerate-section:
+    post:
+      summary: Regenerate one report section with feedback
+      operationId: regenerateSection
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [section_id, feedback]
+              properties:
+                section_id:
+                  type: string
+                feedback:
+                  type: string
+      responses:
+        "202":
+          description: Section regeneration started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobProgress"
+  /jobs/{id}/export/{format}:
+    get:
+      summary: Download a verified export artifact
+      operationId: exportReport
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - name: format
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [markdown, pdf, docx]
+      responses:
+        "200":
+          description: Export artifact
+          content:
+            text/markdown:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+        "409":
+          description: Export blocked by verification or approval gate
+  /jobs/{id}/traces:
+    get:
+      summary: Get full agent execution log with costs
+      operationId: listJobTraces
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Agent traces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentTrace"
+  /costs/summary:
+    get:
+      summary: Get dashboard cost statistics across jobs
+      operationId: getCostsSummary
+      responses:
+        "200":
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostSummary"
+  /jobs/{id}/approve:
+    post:
+      summary: Approve a human-in-the-loop export gate
+      operationId: approveJob
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Approval recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportJobDetail"
+  /jobs/{id}/retry:
+    post:
+      summary: Resume from the last checkpoint after failure
+      operationId: retryJob
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "202":
+          description: Retry started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobProgress"
+components:
+  parameters:
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    ReportType:
+      type: string
+      enum:
+        - market_research
+        - company_profile
+        - technical_report
+        - investment_memo
+        - competitive_analysis
+        - policy_brief
+        - literature_review
+    ReportDepth:
+      type: string
+      enum: [brief, standard, deep]
+    VerificationStatus:
+      type: string
+      enum: [SUPPORTED, PARTIALLY_SUPPORTED, UNSUPPORTED, CONTRADICTED, UNVERIFIED]
+    CreateJobResponse:
+      type: object
+      required: [job_id, status, estimated_cost_usd, estimated_kimi_cost_usd]
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+        estimated_cost_usd:
+          type: number
+        estimated_kimi_cost_usd:
+          type: number
+    JobProgress:
+      type: object
+      required: [job_id, status, active_agent, current_step, percent_complete]
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+        active_agent:
+          type: string
+          nullable: true
+        current_step:
+          type: string
+        percent_complete:
+          type: number
+        blockers:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    ReportJobDetail:
+      type: object
+      required: [id, topic, type, depth, status, sections, sources, cost]
+      properties:
+        id:
+          type: string
+        topic:
+          type: string
+        type:
+          $ref: "#/components/schemas/ReportType"
+        depth:
+          $ref: "#/components/schemas/ReportDepth"
+        status:
+          type: string
+        approval_required:
+          type: boolean
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportSection"
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/Source"
+        cost:
+          $ref: "#/components/schemas/CostMetrics"
+    ReportSection:
+      type: object
+      required: [id, job_id, title, content, order, status, claims, sources, charts]
+      properties:
+        id:
+          type: string
+        job_id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        order:
+          type: integer
+        status:
+          type: string
+        claims:
+          type: array
+          items:
+            $ref: "#/components/schemas/Claim"
+        sources:
+          type: array
+          items:
+            type: string
+        charts:
+          type: array
+          items:
+            type: string
+    Source:
+      type: object
+      required: [id, job_id, title, relevance_score, citation_key]
+      properties:
+        id:
+          type: string
+        job_id:
+          type: string
+        title:
+          type: string
+        url:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+          nullable: true
+        summary:
+          type: string
+        relevance_score:
+          type: number
+        citation_key:
+          type: string
+    Claim:
+      type: object
+      required: [id, text, source_ids, verification_status, confidence]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        source_ids:
+          type: array
+          items:
+            type: string
+        verification_status:
+          $ref: "#/components/schemas/VerificationStatus"
+        confidence:
+          type: number
+    AgentTrace:
+      type: object
+      required: [id, job_id, agent_name, tokens, cost, latency, timestamp, retry_attempt]
+      properties:
+        id:
+          type: string
+        job_id:
+          type: string
+        agent_name:
+          type: string
+        input:
+          type: string
+        output:
+          type: string
+        tokens:
+          type: integer
+        cost:
+          type: number
+        estimated_kimi_cost_usd:
+          type: number
+        latency:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        retry_attempt:
+          type: integer
+    CostMetrics:
+      type: object
+      required: [prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd, latency_ms, model_name, estimated_kimi_cost_usd]
+      properties:
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        estimated_cost_usd:
+          type: number
+        latency_ms:
+          type: integer
+        model_name:
+          type: string
+        estimated_kimi_cost_usd:
+          type: number
+    CostSummary:
+      type: object
+      required: [job_count, total_tokens, actual_cost_usd, estimated_kimi_cost_usd]
+      properties:
+        job_count:
+          type: integer
+        total_tokens:
+          type: integer
+        actual_cost_usd:
+          type: number
+        estimated_kimi_cost_usd:
+          type: number
