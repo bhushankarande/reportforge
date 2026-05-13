@@ -1,0 +1,22 @@
+services:
+  reportforge:
+    build:
+      context: .
+    platform: linux/arm64
+    env_file:
+      - .env
+    volumes:
+      - ./storage:/app/storage
+    ports:
+      - "8000:8000"
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  ollama:
+    image: ollama/ollama:latest
+    platform: linux/arm64
+    profiles: ["ollama"]
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  ollama:
