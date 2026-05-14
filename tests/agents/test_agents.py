@@ -345,6 +345,42 @@ def test_verifier_does_not_let_llm_contradict_strong_source_match():
     assert not output.blockers
 
 
+def test_verifier_ignores_numbers_inside_citation_keys():
+    source = Source(
+        id="source-1",
+        job_id="job-1",
+        title="Agentic commerce evidence",
+        summary="AI shopping agents are changing commerce.",
+        raw_text=(
+            "The rise of AI shopping agents represents a seismic shift in how commerce "
+            "will be conducted on a global scale and it is already underway."
+        ),
+        citation_key="[Bcg2]",
+    )
+    section = ReportSection(
+        id="section-1",
+        job_id="job-1",
+        title="Summary",
+        order=0,
+        claims=[
+            Claim(
+                id="claim-1",
+                section_id="section-1",
+                text=(
+                    "The rise of AI shopping agents represents a seismic shift in how commerce "
+                    "will be conducted on a global scale and it is already underway. [Bcg2]"
+                ),
+                source_ids=["source-1"],
+            )
+        ],
+    )
+
+    output = VerifierAgent(FakeRouter(), use_llm=False).run(section, [source])
+
+    assert output.claims[0].verification_status == VerificationStatus.SUPPORTED
+    assert not output.blockers
+
+
 def test_verifier_skips_llm_for_ollama_provider():
     verifier = VerifierAgent(OllamaVerifierRouter())
 

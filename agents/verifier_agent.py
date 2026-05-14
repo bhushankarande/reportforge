@@ -586,9 +586,10 @@ Deterministic pre-check:
 
     def _extract_numbers(self, text: str) -> list[str]:
         """Extract normalized number tokens."""
+        text_without_citations = CITATION_PATTERN.sub("", text)
         numbers = []
 
-        for match in NUMBER_PATTERN.finditer(text):
+        for match in NUMBER_PATTERN.finditer(text_without_citations):
             value = match.group(0).replace(",", "").strip()
             numbers.append(value)
 
