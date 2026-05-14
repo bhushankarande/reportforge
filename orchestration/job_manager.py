@@ -143,6 +143,10 @@ class JobManager:
             self._set_progress(job_id, ReportStatus.FAILED, None, str(exc), 100.0)
             self._persist_job(job)
 
+    def execute(self, job_id: str) -> None:
+        """Background task entrypoint for FastAPI."""
+        self.run_job(job_id)
+
     def regenerate_section(self, job_id: str, section_id: str, feedback: str) -> ReportSection:
         """Apply a section-level regeneration marker and keep the report traceable."""
         for index, section in enumerate(self.jobs[job_id].sections):

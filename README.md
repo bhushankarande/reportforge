@@ -8,8 +8,9 @@ Local-first multi-agent report generation for structured, citation-grounded busi
 
 ```mermaid
 flowchart LR
-    UI["Streamlit UI\nfrontend/"] --> API["FastAPI\napp/"]
-    API --> WF["AgentScope Workflow\norchestration/"]
+    UI["Streamlit frontend"] --> API["FastAPI app"]
+    API --> Jobs["BackgroundTasks + JobManager"]
+    Jobs --> WF["ReportForge workflow"]
     WF --> Planner["Planner Agent"]
     WF --> Research["Research Agent"]
     WF --> Reader["Document Reader Agent"]
@@ -18,13 +19,14 @@ flowchart LR
     WF --> Verifier["Verifier Agent"]
     WF --> Critic["Critic Agent"]
     WF --> Formatter["Formatter Agent"]
-    Planner --> LLM["tools/llm\nModelRouter + CostTrackingModel"]
-    Research --> RAG["tools/rag\nChroma-style vectors + BM25 + reranker"]
-    Reader --> Parsers["tools/pdf_reader.py\ntools/docx_reader.py\ntools/csv_reader.py"]
-    Analyst --> Charts["tools/charts/"]
-    Writer --> Citations["tools/citation_checker.py"]
-    Formatter --> Exports["tools/export/\nJinja2 templates"]
-    WF --> Store["SQLite + storage/\ncheckpoints, traces, artifacts"]
+    Planner --> LLM["tools/llm: ModelRouter, QuotaManager, CostEstimator"]
+    Research --> Search["tools/search: mock + optional Tavily"]
+    Reader --> Parsers["tools: PDF, DOCX, CSV readers"]
+    Analyst --> Charts["tools/charts"]
+    Writer --> RAG["tools/rag: vector, BM25, hybrid retriever, reranker"]
+    Verifier --> Citations["tools/citation_checker"]
+    Formatter --> Exporters["tools/export: Markdown, PDF, DOCX"]
+    Jobs --> Store["SQLite + storage: traces, reports, checkpoints"]
 ```
 
 ## Quickstart
@@ -36,34 +38,40 @@ docker compose up --build
 
 Services:
 
-- API: `http://localhost:8000`
-- Healthcheck: `http://localhost:8000/health`
+- FastAPI: `http://localhost:8000`
 - Streamlit: `http://localhost:8501`
+- Healthcheck: `http://localhost:8000/health`
 
 Local development:
 
 ```bash
 uv sync
 uv run uvicorn app.main:app --reload
-uv run streamlit run frontend/streamlit_app.py
+REPORTFORGE_API_URL=http://localhost:8000 uv run streamlit run frontend/streamlit_app.py
 ```
 
 ## Configuration
 
-| Variable | Default | Purpose | Free-tier behavior | Production switch |
-|---|---:|---|---|---|
-| `ACTIVE_LLM_PROVIDER` | `gemini` | Active provider for `ModelRouter` | Gemini Flash by default | Set `kimi`, `groq`, or `ollama` |
-| `GEMINI_API_KEY` | empty | Gemini API key | 1,500 req/day quota guard | Required for Gemini |
-| `GEMINI_MODEL_NAME` | `gemini-1.5-flash` | Gemini model | Zero actual cost logs | Swap via env only |
-| `GROQ_API_KEY` | empty | Groq debug fallback | 1M tok/day quota guard | Optional |
-| `OLLAMA_MODEL_NAME` | `llama3.1:8b` | Local model | No-op quota, zero cost | Use with Ollama sidecar |
-| `KIMI_API_KEY` | empty | Kimi production key | Blocked when cost guard is zero | Enable with positive cost guard |
-| `MAX_COST_USD_PER_JOB` | `0.00` | Hard cost ceiling | Blocks Kimi | Set positive budget |
-| `ENABLE_COST_PREVIEW` | `true` | Show cost preview | Computes Kimi estimates | Keep enabled |
-| `STORAGE_DIR` | `./storage` | Runtime artifact root | Local only | Mount persistent volume |
-| `DATABASE_URL` | SQLite | Job/traces/checkpoints | Local SQLite | Postgres path in V2 |
+| Variable | Free tier | Production |
+|---|---|---|
+| `ACTIVE_LLM_PROVIDER` | `gemini`, `groq`, or `ollama` | Set `kimi` after raising cost guard |
+| `GEMINI_API_KEY` | Gemini Flash key, guarded at 1,500 req/day | Required for Gemini-backed agents |
+| `GROQ_API_KEY` | Optional debug fallback, guarded at 1M tok/day | Optional |
+| `OLLAMA_MODEL_NAME` | `llama3.1:8b` local fallback | Use local/sidecar Ollama |
+| `KIMI_API_KEY` | Not used while cost guard is zero | Required for Kimi |
+| `MAX_COST_USD_PER_JOB` | `0.00`, blocks Kimi | Positive budget enables Kimi routing |
+| `ENABLE_COST_PREVIEW` | `true`, logs Kimi-equivalent estimate | Keep enabled |
+| `STORAGE_DIR` | `./storage` | Persistent volume |
+| `DATABASE_URL` | `sqlite:///./storage/reportforge.db` | Postgres migration path planned |
+| `REPORTFORGE_API_URL` | Streamlit backend URL | Set to deployed API URL |
 
 ## API
+
+Health:
+
+```bash
+curl http://localhost:8000/health
+```
 
 Create a job:
 
@@ -73,106 +81,81 @@ curl -X POST http://localhost:8000/jobs \
   -d '{"topic":"AI reporting","type":"market_research","depth":"standard"}'
 ```
 
-Get full job:
+Job status and progress:
 
 ```bash
 curl http://localhost:8000/jobs/{job_id}
-```
-
-Get progress:
-
-```bash
 curl http://localhost:8000/jobs/{job_id}/progress
+curl http://localhost:8000/jobs/{job_id}/progress/stream
 ```
 
-List sections:
+Report data:
 
 ```bash
 curl http://localhost:8000/jobs/{job_id}/sections
-```
-
-List sources:
-
-```bash
 curl http://localhost:8000/jobs/{job_id}/sources
-```
-
-Regenerate a section:
-
-```bash
-curl -X POST 'http://localhost:8000/jobs/{job_id}/regenerate-section?section_id=summary&feedback=tighter'
-```
-
-Export a report:
-
-```bash
-curl http://localhost:8000/jobs/{job_id}/export/markdown
-curl http://localhost:8000/jobs/{job_id}/export/pdf
-curl http://localhost:8000/jobs/{job_id}/export/docx
-```
-
-Get traces:
-
-```bash
 curl http://localhost:8000/jobs/{job_id}/traces
 ```
 
-Cost dashboard:
+Mutation:
+
+```bash
+curl -X POST 'http://localhost:8000/jobs/{job_id}/regenerate-section?section_id={section_id}&feedback=tighter'
+curl -X POST http://localhost:8000/jobs/{job_id}/approve
+curl -X POST http://localhost:8000/jobs/{job_id}/retry
+```
+
+Exports:
+
+```bash
+curl http://localhost:8000/jobs/{job_id}/export/markdown
+curl http://localhost:8000/jobs/{job_id}/export/pdf --output report.pdf
+curl http://localhost:8000/jobs/{job_id}/export/docx --output report.docx
+```
+
+Cost and quota:
 
 ```bash
 curl http://localhost:8000/costs/summary
-```
-
-Approve HITL gate:
-
-```bash
-curl -X POST http://localhost:8000/jobs/{job_id}/approve
-```
-
-Retry after failure:
-
-```bash
-curl -X POST http://localhost:8000/jobs/{job_id}/retry
+curl http://localhost:8000/costs/quota
 ```
 
 ## Agent Catalog
 
-| Agent | Purpose | LLM | Input Schema | Output Schema |
+| Agent | Purpose | Default LLM | Input Schema | Output Schema |
 |---|---|---|---|---|
-| Planner | Outline and research questions | Gemini via ModelRouter | topic/type/depth | `PlannerOutput` |
-| Research | Mock/Tavily source collection | Gemini via ModelRouter | topic/job | `ResearchOutput` |
-| Document Reader | Parse uploads into evidence | None | file paths | `DocumentReaderOutput` |
-| Data Analyst | Generate chart artifacts and insights | None | CSV/XLSX path | chart/insight dict |
-| Report Writer | Draft section-by-section | Gemini via ModelRouter | `WriterInput` | `WriterOutput` |
-| Verifier | Audit claims and export blockers | Gemini via ModelRouter | claims | `VerifierOutput` |
-| Critic | Score quality and fixes | Gemini via ModelRouter | markdown | `CriticOutput` |
-| Formatter | Produce Markdown/PDF/DOCX artifacts | None | sections/job | `FormatterOutput` |
+| Planner | Create depth-aware outline and research questions | Gemini Flash via ModelRouter | `ReportJob` | `PlannerOutput` |
+| Research | Collect mock/Tavily-ready sources | Gemini Flash via ModelRouter | job id + topic | `ResearchOutput` |
+| Document Reader | Extract uploaded evidence | None | file paths | `DocumentReaderOutput` |
+| Data Analyst | Summarize CSV data and chart artifacts | None | CSV path | chart/insight dict |
+| Report Writer | Draft sections using bounded evidence | Gemini Flash via ModelRouter | `WriterInput` | `WriterOutput` |
+| Verifier | Check claim-source support and blockers | Gemini Flash via ModelRouter | `ReportSection`, `Source[]` | `VerifierOutput` |
+| Critic | Score quality and suggest fixes | Gemini Flash via ModelRouter | markdown | `CriticOutput` |
+| Formatter | Generate Markdown/PDF/DOCX artifacts | None | job id + markdown | `FormatterOutput` |
 
 ## Cost Guide
 
 Free tier:
 
-- Gemini 1.5 Flash: actual cost logged as `$0.00`, guarded at 1,500 requests/day.
-- Groq debug fallback: actual cost logged as `$0.00`, guarded at 1M tokens/day.
-- Ollama: local fallback, unlimited by quota manager.
+- Gemini 1.5 Flash: `$0.00` actual cost, 1,500 requests/day guard.
+- Groq fallback: `$0.00` actual cost, 1M tokens/day guard.
+- Ollama: local fallback, no network quota.
 
-Kimi K2.6 migration estimates are logged through `estimated_kimi_cost_usd`:
+Production Kimi estimates are recorded in `estimated_kimi_cost_usd` while actual free-tier cost stays `$0.00`.
 
-| Depth | Typical use | Production estimate |
+| Depth | Target size | Kimi migration estimate |
 |---|---|---|
-| Brief | 2-3 pages | Low, section-light report |
-| Standard | 5-8 pages | Medium, default planning target |
-| Deep | 10-15 pages | High, requires HITL approval |
-
-`MAX_COST_USD_PER_JOB=0.00` blocks Kimi instantiation during testing.
+| Brief | 2-3 pages | Lowest; small outline and few sections |
+| Standard | 5-8 pages | Medium; default report path |
+| Deep | 10-15 pages | Highest; requires HITL approval |
 
 ## Development
 
 Branch strategy:
 
-- `001-scaffold-and-schemas`: Spec Kit and constitution.
-- `002-report-generation-platform`: specification, plan, contracts, tasks.
-- `003-rag-pipeline`: implementation scaffold and cross-cutting refinements.
+- `001-scaffold-and-schemas`: constitution and scaffold.
+- `002-report-generation-platform`: spec, plan, contracts, tasks.
+- `003-rag-pipeline`: implementation, integration, and hardening.
 
 Checks:
 
@@ -180,7 +163,6 @@ Checks:
 uv run pytest
 uv run ruff check .
 docker compose config --quiet
-docker build -t reportforge:local .
 ```
 
 ## Troubleshooting
@@ -188,28 +170,28 @@ docker build -t reportforge:local .
 Checkpoint recovery:
 
 - Use `POST /jobs/{job_id}/retry`.
-- Check `storage/checkpoints/` for saved workflow state.
+- Check `storage/checkpoints/` for saved state.
 
-HITL gate:
+HITL:
 
-- Investment Memo, Policy Brief, and Deep reports require approval.
+- Investment Memo, Policy Brief, and Deep reports pause at `awaiting_approval`.
 - Use `POST /jobs/{job_id}/approve`.
 
 Provider switch:
 
-- Set `ACTIVE_LLM_PROVIDER=gemini`, `groq`, `ollama`, or `kimi`.
-- Kimi requires `MAX_COST_USD_PER_JOB` greater than zero.
+- Change `ACTIVE_LLM_PROVIDER`.
+- Kimi is blocked until `MAX_COST_USD_PER_JOB` is greater than `0.00`.
 
 Quota exceeded:
 
-- Gemini and Groq counters are SQLite-backed.
-- Quota errors should fail fast rather than retry.
+- API returns 429 for free-tier quota exhaustion.
+- Inspect `/costs/quota` for remaining Gemini/Groq quota.
 
 Common errors:
 
-- Missing `GEMINI_API_KEY`: mock/local paths still work, real Gemini calls will not.
-- Docker healthcheck fails: inspect `docker compose logs api`.
-- Streamlit exits: run `uv sync` and confirm `streamlit` is installed.
+- Backend unavailable in Streamlit: set `REPORTFORGE_API_URL`.
+- Healthcheck fails: run `docker compose logs api`.
+- Export blocked: verifier found unsupported or contradicted claims.
 
 ## License
 

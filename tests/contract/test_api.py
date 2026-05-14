@@ -53,4 +53,14 @@ def test_health_endpoint_returns_ok():
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
+    assert response.json()["model_ready"] is True
+
+
+def test_quota_endpoint_returns_remaining_counts():
+    client = TestClient(create_app())
+
+    response = client.get("/costs/quota")
+
+    assert response.status_code == 200
+    assert "gemini_requests_remaining" in response.json()

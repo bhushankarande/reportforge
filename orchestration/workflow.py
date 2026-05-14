@@ -52,3 +52,11 @@ class ReportWorkflow:
             state.mark_completed("written")
             self.checkpoints.save(state)
         return state
+
+
+class ReportForgeWorkflow(ReportWorkflow):
+    """Named workflow facade used by FastAPI background execution."""
+
+    def execute(self, job_id: str, topic: str, report_type: ReportType, depth: ReportDepth) -> WorkflowState:
+        """Execute the report workflow and return the final workflow state."""
+        return self.run(job_id, topic, report_type, depth)

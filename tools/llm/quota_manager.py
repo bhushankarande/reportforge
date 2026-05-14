@@ -51,3 +51,20 @@ class QuotaManager:
             record.requests += 1
             record.tokens += max(tokens, 0)
             session.commit()
+
+    def status(self) -> dict[str, int]:
+        """Return remaining daily free-tier quota counters."""
+        today = date.today().isoformat()
+        with SessionLocal() as session:
+            gemini = session.scalar(
+                select(QuotaCounterRecord).where(QuotaCounterRecord.key == f"gemini:{today}")
+            )
+            groq = session.scalar(select(QuotaCounterRecord).where(QuotaCounterRecord.key == f"groq:{today}"))
+            gemini_used = gemini.requests if gemini is not None else 0
+            groq_used = groq.tokens if groq is not None else 0
+        return {
+            "gemini_requests_used": gemini_used,
+            "gemini_requests_remaining": max(self.limits.gemini_requests_per_day - gemini_used, 0),
+            "groq_tokens_used": groq_used,
+            "groq_tokens_remaining": max(self.limits.groq_tokens_per_day - groq_used, 0),
+        }

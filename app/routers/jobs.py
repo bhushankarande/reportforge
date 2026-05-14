@@ -1,6 +1,11 @@
 """Job API endpoints."""
 
+import asyncio
+import json
+from collections.abc import AsyncIterator
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.services.job_registry import manager
 from schemas.api import CreateJobRequest, CreateJobResponse, JobProgress
@@ -12,7 +17,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 async def create_job(request: CreateJobRequest, background_tasks: BackgroundTasks) -> CreateJobResponse:
     """Submit a new report job."""
     response = manager.create_job(request)
-    background_tasks.add_task(manager.run_job, response.job_id)
+    background_tasks.add_task(manager.execute, response.job_id)
     return response
 
 
@@ -30,6 +35,27 @@ async def get_progress(job_id: str) -> JobProgress:
     if job_id not in manager.jobs:
         raise HTTPException(status_code=404, detail="job not found")
     return manager.progress(job_id)
+
+
+@router.get("/{job_id}/progress/stream")
+async def stream_progress(job_id: str) -> StreamingResponse:
+    """Stream job progress updates as server-sent events."""
+    if job_id not in manager.jobs:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    async def event_stream() -> AsyncIterator[str]:
+        last_payload = ""
+        for _ in range(300):
+            payload = manager.progress(job_id).model_dump_json()
+            if payload != last_payload:
+                yield f"event: progress\ndata: {payload}\n\n"
+                last_payload = payload
+            if manager.jobs[job_id].status.value in {"completed", "failed", "awaiting_approval"}:
+                break
+            await asyncio.sleep(2)
+        yield f"event: done\ndata: {json.dumps({'job_id': job_id})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.get("/{job_id}/sources")
