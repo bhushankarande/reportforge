@@ -12,6 +12,7 @@ class PlannerOutput(BaseModel):
 
     outline: list[str]
     research_questions: list[str]
+    target_word_count: int = Field(default=2500, ge=1)
 
 
 class ResearchOutput(BaseModel):
@@ -50,6 +51,7 @@ class WriterOutput(BaseModel):
     section_title: str
     content: str
     claims: list[Claim]
+    sources_used: list[str] = Field(default_factory=list)
 
 
 class VerifierOutput(BaseModel):

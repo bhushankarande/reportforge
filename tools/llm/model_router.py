@@ -15,9 +15,11 @@ class RoutedModel:
 
     provider: str
     model_name: str
+    api_key: str = ""
+    base_url: str = ""
 
     def __call__(self, prompt: str) -> str:
-        """Return a deterministic placeholder response for local testing."""
+        """Return a deterministic local response for free-tier/offline tests."""
         return f"[{self.provider}:{self.model_name}] {prompt}"
 
 
@@ -33,12 +35,13 @@ class ModelRouter:
         active = (provider or self.settings.active_llm_provider).lower()
         if active == "kimi" and self.settings.max_cost_usd_per_job == 0:
             raise ProviderBlockedError("Kimi is blocked while MAX_COST_USD_PER_JOB=0.00")
-        model_names = {
-            "gemini": self.settings.gemini_model_name,
-            "groq": self.settings.groq_model_name,
-            "ollama": self.settings.ollama_model_name,
-            "kimi": self.settings.kimi_model_name,
+        configs = {
+            "gemini": (self.settings.gemini_model_name, self.settings.gemini_api_key, ""),
+            "groq": (self.settings.groq_model_name, self.settings.groq_api_key, ""),
+            "ollama": (self.settings.ollama_model_name, "", "http://localhost:11434"),
+            "kimi": (self.settings.kimi_model_name, self.settings.kimi_api_key, ""),
         }
-        if active not in model_names:
+        if active not in configs:
             raise ValueError(f"Unsupported provider: {active}")
-        return RoutedModel(provider=active, model_name=model_names[active])
+        model_name, api_key, base_url = configs[active]
+        return RoutedModel(provider=active, model_name=model_name, api_key=api_key, base_url=base_url)

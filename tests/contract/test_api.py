@@ -28,6 +28,25 @@ def test_get_job_progress_endpoint_returns_status():
     assert response.json()["job_id"] == created["job_id"]
 
 
+def test_job_outputs_sources_sections_and_markdown_export():
+    client = TestClient(create_app())
+    created = client.post(
+        "/jobs",
+        json={"topic": "AI reporting", "type": "market_research", "depth": "standard"},
+    ).json()
+
+    sections = client.get(f"/jobs/{created['job_id']}/sections")
+    sources = client.get(f"/jobs/{created['job_id']}/sources")
+    export = client.get(f"/jobs/{created['job_id']}/export/markdown")
+
+    assert sections.status_code == 200
+    assert sections.json()
+    assert sources.status_code == 200
+    assert sources.json()
+    assert export.status_code == 200
+    assert "# AI reporting" in export.text
+
+
 def test_health_endpoint_returns_ok():
     client = TestClient(create_app())
 

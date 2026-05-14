@@ -19,6 +19,7 @@ class BM25Record:
     text: str
     source_id: str
     terms: Counter[str]
+    source_type: str = "unknown"
 
 
 class BM25Store:
@@ -28,9 +29,9 @@ class BM25Store:
         """Initialize empty store."""
         self.records: list[BM25Record] = []
 
-    def add_text(self, record_id: str, text: str, source_id: str) -> None:
+    def add_text(self, record_id: str, text: str, source_id: str, source_type: str = "unknown") -> None:
         """Index text for keyword scoring."""
-        self.records.append(BM25Record(record_id, text, source_id, Counter(tokenize(text))))
+        self.records.append(BM25Record(record_id, text, source_id, Counter(tokenize(text)), source_type))
 
     def search(self, query: str, *, limit: int = 5) -> list[tuple[BM25Record, float]]:
         """Return keyword-ranked records."""

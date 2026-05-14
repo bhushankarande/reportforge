@@ -54,6 +54,20 @@ def test_model_router_supports_all_providers(provider, expected_model):
     assert model.model_name == expected_model
 
 
+def test_model_router_reads_provider_api_key_and_ollama_base_url():
+    settings = Settings(
+        ACTIVE_LLM_PROVIDER="gemini",
+        GEMINI_API_KEY="gemini-key",
+        MAX_COST_USD_PER_JOB=1.0,
+    )
+
+    gemini = ModelRouter(settings).get_model()
+    ollama = ModelRouter(settings).get_model("ollama")
+
+    assert gemini.api_key == "gemini-key"
+    assert ollama.base_url == "http://localhost:11434"
+
+
 def test_quota_manager_enforces_gemini_daily_request_limit():
     manager = QuotaManager(QuotaLimits(gemini_requests_per_day=1, groq_tokens_per_day=1_000_000))
 

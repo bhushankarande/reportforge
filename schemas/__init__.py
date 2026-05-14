@@ -11,12 +11,13 @@ from schemas.agent_outputs import (
     WriterOutput,
 )
 from schemas.api import CreateJobRequest, CreateJobResponse, JobProgress
-from schemas.costs import CostMetrics
+from schemas.costs import AgentTrace, CostMetrics
 from schemas.reports import ReportDepth, ReportJob, ReportSection, ReportStatus, ReportType
 from schemas.sources import Claim, Source, VerificationStatus
 
 __all__ = [
     "Claim",
+    "AgentTrace",
     "CostMetrics",
     "CreateJobRequest",
     "CreateJobResponse",

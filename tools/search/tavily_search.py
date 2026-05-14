@@ -1,6 +1,6 @@
 """Optional Tavily search integration with retry guardrails."""
 
-from tenacity import RetryCallState, retry, stop_after_attempt, wait_exponential
+from tenacity import RetryCallState, retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
 from app.logging_config import get_logger
 from tools.llm.quota_manager import QuotaExceededError
@@ -22,6 +22,7 @@ def log_retry_attempt(retry_state: RetryCallState) -> None:
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=2, min=2, max=8),
     before_sleep=log_retry_attempt,
+    retry=retry_if_not_exception_type(QuotaExceededError),
     reraise=True,
 )
 def tavily_search(query: str, *, api_key: str, limit: int = 5) -> list[dict[str, object]]:

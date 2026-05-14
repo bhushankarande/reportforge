@@ -32,3 +32,14 @@ def test_hybrid_retriever_fuses_vector_and_bm25_results():
 
     assert "exact market demand" in results
     assert len(results) == 2
+
+
+def test_hybrid_retriever_retrieve_filters_by_source_type():
+    retriever = HybridRetriever(job_id="job-3")
+    retriever.add_documents(["uploaded evidence about revenue"], source_id="source-1", source_type="upload")
+    retriever.add_documents(["web evidence about revenue"], source_id="source-2", source_type="web")
+
+    results = retriever.retrieve("revenue", filters={"source_type": "upload"})
+
+    assert results
+    assert all(result.source_type == "upload" for result in results)

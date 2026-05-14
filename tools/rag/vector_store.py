@@ -13,6 +13,7 @@ class VectorRecord:
     text: str
     embedding: list[float]
     source_id: str
+    source_type: str = "unknown"
 
 
 class InMemoryVectorStore:
@@ -24,9 +25,9 @@ class InMemoryVectorStore:
         self.collection_name = f"report_{job_id}"
         self.records: list[VectorRecord] = []
 
-    def add_text(self, record_id: str, text: str, source_id: str) -> None:
+    def add_text(self, record_id: str, text: str, source_id: str, source_type: str = "unknown") -> None:
         """Add text to the collection."""
-        self.records.append(VectorRecord(record_id, text, embed_text(text), source_id))
+        self.records.append(VectorRecord(record_id, text, embed_text(text), source_id, source_type))
 
     def search(self, query: str, *, limit: int = 5) -> list[tuple[VectorRecord, float]]:
         """Search records by vector similarity."""

@@ -22,3 +22,21 @@ class CostMetrics(BaseModel):
     def total_tokens(self) -> int:
         """Return prompt plus completion tokens."""
         return self.prompt_tokens + self.completion_tokens
+
+
+class AgentTrace(BaseModel):
+    """Serializable trace for one agent or tool execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    job_id: str
+    agent_name: str
+    input: str
+    output: str
+    tokens: int = Field(default=0, ge=0)
+    cost: Decimal = Field(default=Decimal("0.00"), ge=0)
+    estimated_kimi_cost_usd: Decimal = Field(default=Decimal("0.00"), ge=0)
+    latency_ms: int = Field(default=0, ge=0)
+    retry_attempt: int = Field(default=0, ge=0)
+    timestamp: str
