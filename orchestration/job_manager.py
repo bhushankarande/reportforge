@@ -107,39 +107,74 @@ class JobManager:
             self.sources_by_job[job_id] = research_output.sources
             self._append_trace(job_id, "ResearchAgent", job.topic, research_output.model_dump_json())
 
+            sections: list[ReportSection] = []
+            all_blockers: list[str] = []
+            writer = ReportWriterAgent(router)
+            verifier = VerifierAgent(router)
             evidence = [source.raw_text for source in research_output.sources]
-            source_ids = [source.id for source in research_output.sources]
-            first_section = planner_output.outline[0] if planner_output.outline else "Executive Summary"
-            self._set_progress(job_id, ReportStatus.RUNNING, "ReportWriterAgent", "drafting first section", 55.0)
-            writer_output = ReportWriterAgent(router).write(
-                WriterInput(job_id=job_id, section_title=first_section, evidence=evidence)
-            )
-            claims = [
-                claim.model_copy(update={"section_id": f"{job_id}-section-1", "source_ids": source_ids})
-                for claim in writer_output.claims
-            ]
-            self._append_trace(job_id, "ReportWriterAgent", first_section, writer_output.model_dump_json())
+            for order, section_title in enumerate(planner_output.outline):
+                section_id = f"{job_id}-section-{order + 1}"
+                self._set_progress(
+                    job_id,
+                    ReportStatus.RUNNING,
+                    "ReportWriterAgent",
+                    f"drafting section {order + 1}/{len(planner_output.outline)}",
+                    40.0 + (order / max(len(planner_output.outline), 1)) * 35.0,
+                )
+                writer_output = writer.write(
+                    WriterInput(
+                        job_id=job_id,
+                        section_title=section_title,
+                        evidence=evidence,
+                        rolling_summary=self._rolling_summary(sections),
+                    )
+                )
+                claims = [
+                    claim.model_copy(
+                        update={
+                            "section_id": section_id,
+                            "source_ids": self._source_ids_for_claim(claim, research_output.sources),
+                        }
+                    )
+                    for claim in writer_output.claims
+                ]
+                self._append_trace(job_id, "ReportWriterAgent", section_title, writer_output.model_dump_json())
 
-            self._set_progress(job_id, ReportStatus.RUNNING, "VerifierAgent", "checking citations", 75.0)
-            draft_section = ReportSection(
-                id=f"{job_id}-section-1",
-                job_id=job_id,
-                title=writer_output.section_title,
-                content=writer_output.content,
-                order=0,
-                status="drafted",
-                sources=source_ids,
-                claims=claims,
-            )
-            verifier_output = VerifierAgent(router).run(draft_section, research_output.sources)
-            self._append_trace(job_id, "VerifierAgent", f"{len(claims)} claims", verifier_output.model_dump_json())
+                self._set_progress(
+                    job_id,
+                    ReportStatus.RUNNING,
+                    "VerifierAgent",
+                    f"checking section {order + 1}/{len(planner_output.outline)}",
+                    75.0 + (order / max(len(planner_output.outline), 1)) * 15.0,
+                )
+                draft_section = ReportSection(
+                    id=section_id,
+                    job_id=job_id,
+                    title=writer_output.section_title,
+                    content=writer_output.content,
+                    order=order,
+                    status="drafted",
+                    sources=[source.id for source in research_output.sources],
+                    claims=claims,
+                )
+                verifier_output = verifier.run(draft_section, research_output.sources)
+                self._append_trace(
+                    job_id,
+                    "VerifierAgent",
+                    f"{len(claims)} claims in {section_title}",
+                    verifier_output.model_dump_json(),
+                )
 
-            section_status = "blocked" if verifier_output.blockers else "drafted"
-            section = draft_section.model_copy(
-                update={"status": section_status, "claims": verifier_output.claims}
-            )
-            final_status = self._final_status(job, has_blockers=bool(verifier_output.blockers))
-            job.sections = [section]
+                all_blockers.extend(verifier_output.blockers)
+                section_status = "blocked" if verifier_output.blockers else "drafted"
+                sections.append(
+                    draft_section.model_copy(
+                        update={"status": section_status, "claims": verifier_output.claims}
+                    )
+                )
+
+            final_status = self._final_status(job, has_blockers=bool(all_blockers))
+            job.sections = sections
             job.status = final_status
             job.completed_at = None if final_status == ReportStatus.AWAITING_APPROVAL else datetime.now(timezone.utc).isoformat()
             self._set_progress(job_id, final_status, None, final_status.value, 100.0, cost=job.cost)
@@ -284,6 +319,23 @@ class JobManager:
             estimated_kimi_cost_usd=estimated_kimi,
             model_name=model_names.get(provider, "unknown"),
         )
+
+    @staticmethod
+    def _rolling_summary(sections: list[ReportSection]) -> str:
+        """Return a compact summary of previously drafted sections."""
+        if not sections:
+            return ""
+        snippets = [f"{section.title}: {section.content[:240]}" for section in sections[-3:]]
+        return "\n".join(snippets)
+
+    @staticmethod
+    def _source_ids_for_claim(claim, sources: list[Source]) -> list[str]:
+        """Map citation-key claim references to stored Source ids."""
+        by_key = {source.citation_key.strip("[]"): source.id for source in sources}
+        valid_ids = {source.id for source in sources}
+        mapped = [by_key[source_id] for source_id in claim.source_ids if source_id in by_key]
+        direct = [source_id for source_id in claim.source_ids if source_id in valid_ids]
+        return mapped or direct or [source.id for source in sources]
 
     def _persist_job(self, job: ReportJob) -> None:
         """Persist the current job lifecycle state to SQLite."""

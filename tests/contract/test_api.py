@@ -41,6 +41,7 @@ def test_job_outputs_sources_sections_and_markdown_export():
 
     assert sections.status_code == 200
     assert sections.json()
+    assert len(sections.json()) >= 2
     assert sources.status_code == 200
     assert sources.json()
     assert export.status_code == 200

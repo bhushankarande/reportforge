@@ -12,6 +12,14 @@ def test_pdf_writer_creates_valid_pdf_header(tmp_path):
     assert path.read_bytes().startswith(b"%PDF-1.4")
 
 
+def test_pdf_writer_creates_multiple_pages_for_long_reports(tmp_path):
+    markdown = "\n".join(f"Line {index}" for index in range(120))
+
+    path = write_pdf(markdown, tmp_path / "long-report.pdf")
+
+    assert b"/Count 3" in path.read_bytes()
+
+
 def test_docx_writer_creates_office_zip(tmp_path):
     path = write_docx("# Report\n\nEvidence [SourceID]", tmp_path / "report.docx")
 
