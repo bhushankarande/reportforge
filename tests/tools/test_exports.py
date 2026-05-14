@@ -42,4 +42,6 @@ def test_data_analyst_agent_summarizes_csv(tmp_path):
     output = DataAnalystAgent().analyze(str(csv_path), str(tmp_path / "charts"))
 
     assert output["charts"]
-    assert output["insights"] == ["Analyzed 2 rows from metrics.csv."]
+    assert output["schema"]
+    assert "metrics: analyzed 2 rows and 2 columns." in output["insights"]
+    assert any("value ranges from" in insight for insight in output["insights"])
