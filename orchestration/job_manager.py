@@ -111,7 +111,7 @@ class JobManager:
             sections: list[ReportSection] = []
             all_blockers: list[str] = []
             writer = ReportWriterAgent(router)
-            verifier = VerifierAgent(router)
+            verifier = VerifierAgent(router, use_llm=False)
             evidence = [
                 f"{source.raw_text}\nCitation: {source.citation_key}"
                 for source in research_output.sources

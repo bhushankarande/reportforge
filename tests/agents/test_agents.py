@@ -42,6 +42,28 @@ class JsonWriterRouter:
         return JsonWriterModel()
 
 
+class ContradictingVerifierModel:
+    provider = "gemini"
+    model_name = "llama3.1:8b"
+
+    def __call__(self, prompt):
+        return '{"verification_status":"CONTRADICTED","confidence":1.0,"reason":"incorrect model override"}'
+
+
+class ContradictingVerifierRouter:
+    def get_model(self, provider=None):
+        return ContradictingVerifierModel()
+
+
+class OllamaVerifierModel(ContradictingVerifierModel):
+    provider = "ollama"
+
+
+class OllamaVerifierRouter:
+    def get_model(self, provider=None):
+        return OllamaVerifierModel()
+
+
 def test_planner_agent_returns_outline():
     output = PlannerAgent(FakeRouter()).plan(fake.catch_phrase(), "market_research", "standard")
 
@@ -285,6 +307,48 @@ def test_verifier_run_supports_claim_with_matching_source():
 
     assert output.claims[0].verification_status == VerificationStatus.SUPPORTED
     assert not output.blockers
+
+
+def test_verifier_does_not_let_llm_contradict_strong_source_match():
+    source = Source(
+        id="source-1",
+        job_id="job-1",
+        title="Agentic commerce evidence",
+        summary="AI shopping agents are changing commerce.",
+        raw_text=(
+            "The rise of AI shopping agents represents a seismic shift in how commerce "
+            "will be conducted on a global scale and it is already underway."
+        ),
+        citation_key="[Bcg2]",
+    )
+    section = ReportSection(
+        id="section-1",
+        job_id="job-1",
+        title="Summary",
+        order=0,
+        claims=[
+            Claim(
+                id="claim-1",
+                section_id="section-1",
+                text=(
+                    "The rise of AI shopping agents represents a seismic shift in how commerce "
+                    "will be conducted on a global scale and it is already underway. [Bcg2]"
+                ),
+                source_ids=["source-1"],
+            )
+        ],
+    )
+
+    output = VerifierAgent(ContradictingVerifierRouter()).run(section, [source])
+
+    assert output.claims[0].verification_status == VerificationStatus.SUPPORTED
+    assert not output.blockers
+
+
+def test_verifier_skips_llm_for_ollama_provider():
+    verifier = VerifierAgent(OllamaVerifierRouter())
+
+    assert verifier.use_llm is False
 
 
 def test_research_agent_uses_url_sources(monkeypatch):

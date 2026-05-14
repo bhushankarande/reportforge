@@ -54,10 +54,12 @@ class VerifierAgent:
             max_evidence_chars_per_source: Evidence snippet budget per source.
         """
         self.router = router or ModelRouter()
-        self.use_llm = use_llm
         self.max_candidate_sources = max_candidate_sources
         self.max_evidence_chars_per_source = max_evidence_chars_per_source
-        self.model = CostTrackingModel(self.router.get_model())
+        routed_model = self.router.get_model()
+        self.model_provider = str(getattr(routed_model, "provider", "")).lower()
+        self.use_llm = use_llm and self.model_provider != "ollama"
+        self.model = CostTrackingModel(routed_model)
 
         self.sys_prompt = (
             "You are ReportForge VerifierAgent. Verify claims against the supplied evidence only. "
@@ -389,10 +391,22 @@ Deterministic pre-check:
             VerificationStatus.CONTRADICTED: 4,
         }
 
-        if (
-            deterministic_status == VerificationStatus.CONTRADICTED
-            or llm_status == VerificationStatus.CONTRADICTED
-        ):
+        if deterministic_status == VerificationStatus.CONTRADICTED:
+            return VerificationStatus.CONTRADICTED, max(deterministic_confidence, llm_confidence)
+
+        if llm_status == VerificationStatus.CONTRADICTED:
+            if deterministic_status == VerificationStatus.SUPPORTED and deterministic_confidence >= 0.72:
+                logger.warning(
+                    "verifier_llm_contradiction_ignored",
+                    deterministic_status=deterministic_status.value,
+                    deterministic_confidence=deterministic_confidence,
+                    llm_confidence=llm_confidence,
+                )
+                return deterministic_status, deterministic_confidence
+
+            if deterministic_status == VerificationStatus.PARTIALLY_SUPPORTED:
+                return VerificationStatus.PARTIALLY_SUPPORTED, min(deterministic_confidence, 0.68)
+
             return VerificationStatus.CONTRADICTED, max(deterministic_confidence, llm_confidence)
 
         if severity.get(llm_status, 2) > severity.get(deterministic_status, 2):
