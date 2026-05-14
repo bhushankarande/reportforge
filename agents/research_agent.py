@@ -11,6 +11,32 @@ from tools.search.url_fetcher import fetch_url_text
 
 logger = get_logger(__name__)
 
+BOILERPLATE_FRAGMENTS = (
+    "wp-block",
+    "skip to",
+    "share this article",
+    "tools & services",
+    "explore our latest",
+    "external links",
+    "cta button",
+    "display: none",
+    "request a quote",
+    "products in interest",
+    "want to hear more",
+    "cookie",
+    "privacy policy",
+    "subscribe",
+    "copyright",
+    "linear inverted pendulum",
+    "smart motion devices",
+    "mobile autonomous robot",
+    "acrobat 4-axis",
+    "ball balancing table",
+    "facebook",
+    "linkedin",
+    "x twitter",
+)
+
 
 class ResearchAgent:
     """Collect external sources with metadata and relevance scores."""
@@ -54,7 +80,7 @@ class ResearchAgent:
             excerpt = self._topic_excerpt(text, topic)
             if not excerpt:
                 continue
-            summary = excerpt[:700]
+            summary = excerpt[:900]
             sources.append(
                 Source(
                     id=f"{job_id}-web-source-{index}",
@@ -63,7 +89,7 @@ class ResearchAgent:
                     url=url,
                     summary=summary,
                     relevance_score=max(0.2, 0.95 - (index - 1) * 0.08),
-                    raw_text=f"{summary} {citation_key}",
+                    raw_text=f"{excerpt} {citation_key}",
                     citation_key=citation_key,
                 )
             )
@@ -72,38 +98,50 @@ class ResearchAgent:
         return sources
 
     @staticmethod
-    def _topic_excerpt(text: str, topic: str, *, max_chars: int = 900) -> str:
+    def _topic_excerpt(text: str, topic: str, *, max_chars: int = 2_500) -> str:
         """Return a compact excerpt biased toward the requested topic."""
         cleaned = re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)
         cleaned = re.sub(r"\{[^{}]{0,500}\}", " ", cleaned)
         cleaned = re.sub(r"<svg.*", " ", cleaned, flags=re.IGNORECASE | re.DOTALL)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
-        boilerplate = (
-            "wp-block",
-            "skip to",
-            "share this article",
-            "tools & services",
-            "explore our latest",
-            "external links",
-            "cta button",
-            "display: none",
-        )
         terms = {
             token
             for token in re.findall(r"[a-z0-9]+", topic.lower())
             if len(token) >= 5
         } | {"robot", "robots", "robotics", "language", "model", "models", "task", "planning", "llm"}
-        sentences = [
-            sentence.strip()
-            for sentence in re.split(r"(?<=[.!?])\s+", cleaned)
-            if 40 <= len(sentence.strip()) <= 500
-            and not any(fragment in sentence.lower() for fragment in boilerplate)
-        ]
+        sentences: list[str] = []
+        seen: set[str] = set()
+        for sentence in re.split(r"(?<=[.!?])\s+", cleaned):
+            normalized = re.sub(r"\s+", " ", sentence).strip(" -•")
+            key = normalized.lower()
+            if key in seen or not ResearchAgent._is_useful_sentence(normalized):
+                continue
+            sentences.append(normalized)
+            seen.add(key)
         ranked = sorted(
             sentences,
             key=lambda sentence: sum(1 for term in terms if term in sentence.lower()),
             reverse=True,
         )
-        selected = [sentence for sentence in ranked if any(term in sentence.lower() for term in terms)][:3]
+        selected = [sentence for sentence in ranked if any(term in sentence.lower() for term in terms)][:8]
         excerpt = " ".join(selected) or cleaned[:max_chars]
         return excerpt[:max_chars].strip()
+
+    @staticmethod
+    def _is_useful_sentence(sentence: str) -> bool:
+        """Return whether scraped text is useful evidence rather than page chrome."""
+        if not 45 <= len(sentence) <= 520:
+            return False
+        lower = sentence.lower()
+        if any(fragment in lower for fragment in BOILERPLATE_FRAGMENTS):
+            return False
+        if "keywords:" in lower or re.search(r"\bfigure\s+\d+\b", lower):
+            return False
+        words = re.findall(r"[A-Za-z][A-Za-z-]+", sentence)
+        if len(words) < 8:
+            return False
+        alpha_ratio = sum(char.isalpha() or char.isspace() for char in sentence) / max(len(sentence), 1)
+        if alpha_ratio < 0.65:
+            return False
+        uppercase_words = [word for word in words if len(word) > 3 and word.isupper()]
+        return len(uppercase_words) <= max(2, len(words) // 5)
