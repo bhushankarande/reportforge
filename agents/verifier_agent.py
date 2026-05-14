@@ -99,7 +99,7 @@ class VerifierAgent:
         source_ids = [source.id for source in candidate_sources]
         if best_score >= 0.62:
             return VerificationStatus.SUPPORTED, min(best_score, 1.0), source_ids
-        if best_score >= 0.30:
+        if best_score >= 0.20:
             return VerificationStatus.PARTIALLY_SUPPORTED, best_score, source_ids
         return VerificationStatus.UNSUPPORTED, best_score, source_ids
 

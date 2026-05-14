@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
+from app.config import get_settings
 from app.database import AgentTraceRecord, ReportJobRecord, SessionLocal
 from app.logging_config import get_logger
 from agents.planner_agent import PlannerAgent
@@ -268,7 +269,7 @@ class JobManager:
             completion_tokens=0,
             estimated_cost_usd=Decimal("0.00"),
             estimated_kimi_cost_usd=estimated_kimi,
-            model_name="gemini-1.5-flash",
+            model_name=get_settings().gemini_model_name,
         )
 
     def _persist_job(self, job: ReportJob) -> None:

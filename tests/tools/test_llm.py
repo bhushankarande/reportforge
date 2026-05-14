@@ -5,7 +5,7 @@ import pytest
 from app.config import Settings
 from app.database import QuotaCounterRecord, SessionLocal, init_db
 from tools.llm.cost_estimator import CostEstimator
-from tools.llm.model_router import ModelRouter, ProviderBlockedError
+from tools.llm.model_router import ModelRouter, ProviderBlockedError, RoutedModel
 from tools.llm.quota_manager import QuotaExceededError, QuotaLimits, QuotaManager
 
 
@@ -19,7 +19,7 @@ def clear_quota_counters():
 
 def test_cost_estimator_records_zero_actual_and_kimi_estimate():
     metrics = CostEstimator().estimate(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.5-flash",
         prompt_tokens=1000,
         completion_tokens=500,
     )
@@ -39,7 +39,7 @@ def test_model_router_blocks_kimi_when_cost_guard_is_zero():
 @pytest.mark.parametrize(
     ("provider", "expected_model"),
     [
-        ("gemini", "gemini-1.5-flash"),
+        ("gemini", "gemini-2.5-flash"),
         ("groq", "llama-3.3-70b-versatile"),
         ("ollama", "llama3.1:8b"),
         ("kimi", "kimi-k2.6"),
@@ -67,6 +67,32 @@ def test_model_router_reads_provider_api_key_and_ollama_base_url():
 
     assert gemini.api_key == "gemini-key"
     assert ollama.base_url == "http://ollama.local:11434"
+
+
+def test_gemini_model_uses_generate_content_endpoint(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"candidates":[{"content":{"parts":[{"text":"Gemini generated report."}]}}]}'
+
+    def fake_urlopen(request, timeout, **kwargs):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        return FakeResponse()
+
+    monkeypatch.setattr("tools.llm.model_router.urlopen", fake_urlopen)
+
+    output = RoutedModel(provider="gemini", model_name="gemini-2.5-flash", api_key="key")("hello")
+
+    assert output == "Gemini generated report."
+    assert "gemini-2.5-flash:generateContent" in captured["url"]
 
 
 def test_quota_manager_enforces_gemini_daily_request_limit():

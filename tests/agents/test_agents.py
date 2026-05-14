@@ -20,6 +20,22 @@ class FakeRouter:
         return RoutedModel(provider=provider or "gemini", model_name="gemini-1.5-flash")
 
 
+class JsonWriterModel:
+    provider = "gemini"
+    model_name = "gemini-test"
+
+    def __call__(self, prompt):
+        return (
+            '{"section_title":"Summary","content":"Generated analysis grounded in evidence. '
+            '[Web1]","claims":["Generated analysis grounded in evidence."],"sources_used":["Web1"]}'
+        )
+
+
+class JsonWriterRouter:
+    def get_model(self, provider=None):
+        return JsonWriterModel()
+
+
 def test_planner_agent_returns_outline():
     output = PlannerAgent(FakeRouter()).plan(fake.catch_phrase(), "market_research", "standard")
 
@@ -35,6 +51,48 @@ def test_writer_and_verifier_keep_sourced_claim_exportable():
 
     assert not verified.blockers
     assert verified.claims[0].source_ids
+
+
+def test_writer_uses_model_generated_content_when_available():
+    draft = ReportWriterAgent(JsonWriterRouter()).write(
+        WriterInput(
+            job_id="job-1",
+            section_title="Summary",
+            evidence=["Robotics evidence supports autonomous task planning. [Web1]"],
+        )
+    )
+
+    assert "Generated analysis grounded in evidence" in draft.content
+    assert draft.sources_used == ["Web1"]
+
+
+def test_writer_prunes_uncited_model_sentences_and_maps_claim_sources():
+    class MixedCitationModel:
+        provider = "gemini"
+        model_name = "gemini-test"
+
+        def __call__(self, prompt):
+            return (
+                '{"content":"Supported robotics claim. [Web1] '
+                'Unsupported broad market claim without citation. '
+                'Second supported claim. [Web2]"}'
+            )
+
+    class MixedCitationRouter:
+        def get_model(self, provider=None):
+            return MixedCitationModel()
+
+    draft = ReportWriterAgent(MixedCitationRouter()).write(
+        WriterInput(
+            job_id="job-1",
+            section_title="Summary",
+            evidence=["Robotics evidence. [Web1]", "More evidence. [Web2]"],
+        )
+    )
+
+    assert "Unsupported broad market claim" not in draft.content
+    assert draft.claims[0].source_ids == ["Web1"]
+    assert draft.claims[1].source_ids == ["Web2"]
 
 
 def test_planner_agent_accepts_mocked_gemini_json_style_response():
