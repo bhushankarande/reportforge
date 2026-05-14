@@ -303,30 +303,26 @@ class ReportWriterAgent:
     @staticmethod
     def _synthesized_paragraphs(section_title: str, points: list[EvidencePoint]) -> list[str]:
         """Create readable report paragraphs from clean evidence points."""
-        lens = ReportWriterAgent._section_lens(section_title)
         first = points[0]
         paragraphs = [
             (
-                f"{lens} The strongest evidence is that {ReportWriterAgent._lowercase_lead(first.text)} "
-                f"{first.citation} This matters for the report because it ties language-model capability "
-                f"to concrete robotics workflows instead of treating LLMs as a standalone software trend. {first.citation}"
+                f"The strongest evidence for {section_title.lower()} is that "
+                f"{ReportWriterAgent._lowercase_lead(first.text)} {first.citation}"
             )
         ]
         if len(points) >= 2:
             second = points[1]
-            third = points[2] if len(points) >= 3 else points[0]
             paragraphs.append(
-                f"A second pattern is visible across the source base: {ReportWriterAgent._lowercase_lead(second.text)} "
-                f"{second.citation} Read alongside the other cited material, this suggests the practical value is in "
-                f"translating natural-language intent into planning, control, and human-robot collaboration loops. "
-                f"{third.citation}"
+                f"A second relevant source point is that "
+                f"{ReportWriterAgent._lowercase_lead(second.text)} {second.citation}"
             )
         if len(points) >= 4:
+            third = points[2]
             fourth = points[3]
             paragraphs.append(
-                f"The section should therefore be read with a measured view of maturity. {fourth.text} "
-                f"{fourth.citation} The opportunity is real, but the report should keep adoption claims grounded in "
-                f"demonstrated systems, repeatable evaluations, and clearly cited source evidence. {fourth.citation}"
+                f"The remaining evidence adds two useful constraints: "
+                f"{ReportWriterAgent._lowercase_lead(third.text)} {third.citation} "
+                f"{fourth.text} {fourth.citation}"
             )
         return paragraphs
 
@@ -335,16 +331,16 @@ class ReportWriterAgent:
         """Return a section-specific opening frame."""
         lower = section_title.lower()
         if "executive" in lower or "summary" in lower:
-            return "The central takeaway is that LLM-powered robotics is moving from a research idea toward usable planning and control patterns."
+            return "The central takeaway should be read directly from the cited source evidence."
         if "market" in lower or "competitive" in lower:
-            return "From a market perspective, the important signal is that language interfaces can lower the friction of programming and operating robots."
+            return "From a market perspective, the important signal should come from the cited source evidence."
         if "technical" in lower or "architecture" in lower:
-            return "Technically, the relevant shift is the connection between language understanding, task decomposition, and robot action selection."
+            return "Technically, the relevant shift should be grounded in the cited source evidence."
         if "risk" in lower or "challenge" in lower or "limitation" in lower:
-            return "The main risk is that impressive demonstrations can overstate readiness unless they are tied to reliable execution evidence."
+            return "The main risks should be limited to what the cited source evidence supports."
         if "recommend" in lower or "outlook" in lower:
-            return "The practical recommendation is to treat LLM robotics as an incremental capability layer that needs careful validation."
-        return f"For {section_title.lower()}, the useful reading is to connect each claim directly to the cited robotics evidence."
+            return "The practical recommendation should be constrained by the cited source evidence."
+        return f"For {section_title.lower()}, each claim should connect directly to cited source evidence."
 
     @staticmethod
     def _lowercase_lead(sentence: str) -> str:
@@ -382,15 +378,15 @@ class ReportWriterAgent:
         sentences = [
             sentence.strip()
             for sentence in ReportWriterAgent._citation_aware_sentences(body)
-            if sentence.strip() and not CITATION_PATTERN.fullmatch(sentence.strip())
+            if ReportWriterAgent._has_claim_text(sentence)
         ]
         if not sentences:
-            sentences = [body] if body else ["Insufficient evidence was supplied."]
+            sentences = [body] if ReportWriterAgent._has_claim_text(body) else ["Insufficient evidence was supplied."]
         claims: list[Claim] = []
         for index, sentence in enumerate(sentences, start=1):
             sentence_sources = ReportWriterAgent._dedupe_sources(sentence)
             source_ids = sentence_sources or sources_used
-            if source_ids == ["SourceID"] and "Insufficient evidence" in sentence:
+            if "Insufficient evidence" in sentence:
                 source_ids = []
             status = VerificationStatus.SUPPORTED if source_ids else VerificationStatus.UNVERIFIED
             claims.append(
@@ -404,3 +400,12 @@ class ReportWriterAgent:
                 )
             )
         return claims
+
+    @staticmethod
+    def _has_claim_text(sentence: str) -> bool:
+        """Return whether a sentence contains real claim text beyond citations."""
+        stripped = sentence.strip()
+        if not stripped:
+            return False
+        without_citations = CITATION_PATTERN.sub("", stripped)
+        return bool(re.search(r"[A-Za-z]{3,}", without_citations))

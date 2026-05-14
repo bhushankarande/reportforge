@@ -173,8 +173,17 @@ def test_writer_fallback_filters_boilerplate_and_synthesizes_paragraphs():
     assert "REQUEST A QUOTE" not in draft.content
     assert "Products in Interest" not in draft.content
     assert "available evidence states" not in draft.content
-    assert "From a market perspective" in draft.content
+    assert "The strongest evidence for market analysis" in draft.content
     assert len(draft.content.split("\n\n")) >= 3
+
+
+def test_writer_does_not_extract_citation_only_claims():
+    content = "## Sources\n\n[Web3]\n\n[Web1]\n\n[Web2]\n\n[Web4]"
+
+    claims = ReportWriterAgent._extract_claims("job-1", "Sources", content, ["Web1", "Web2"])
+
+    assert claims[0].text == "Insufficient evidence was supplied."
+    assert claims[0].verification_status == VerificationStatus.UNVERIFIED
 
 
 def test_research_excerpt_filters_scraped_page_chrome():
@@ -187,11 +196,15 @@ def test_research_excerpt_filters_scraped_page_chrome():
         "settings where operators describe goals instead of low-level commands."
     )
 
-    excerpt = ResearchAgent._topic_excerpt(text, "robotics powered by llms")
+    excerpt = ResearchAgent._topic_excerpt(
+        text,
+        ResearchAgent._topic_terms("robotics powered by llms"),
+        max_chars=2_500,
+    )
 
     assert "REQUEST A QUOTE" not in excerpt
     assert "Products in Interest" not in excerpt
-    assert "natural language instructions" in excerpt
+    assert "language models" in excerpt
 
 
 def test_planner_agent_accepts_mocked_gemini_json_style_response():
@@ -265,11 +278,22 @@ def test_verifier_run_supports_claim_with_matching_source():
 
 def test_research_agent_uses_url_sources(monkeypatch):
     def fake_fetch(url):
-        return "Robotics LLM Source", "Robotics LLMs support task planning and collaboration."
+        return (
+            "Robotics LLM Source",
+            (
+                "Robotics LLMs support task planning and collaboration by translating natural "
+                "language goals into structured robot actions. Large language models can help "
+                "operators describe objectives while robotic systems convert those objectives "
+                "into plans, controls, and execution checks. This source discusses robotics, "
+                "language models, planning, collaboration, autonomous execution, and control "
+                "interfaces in enough detail to be useful evidence for a report. "
+            )
+            * 3,
+        )
 
     monkeypatch.setattr("agents.research_agent.fetch_url_text", fake_fetch)
 
     output = ResearchAgent(FakeRouter()).research("job-1", "robotics", ["https://example.com"])
 
-    assert output.sources[0].url == "https://example.com"
-    assert output.sources[0].citation_key == "[Web1]"
+    assert output.sources[0].url == "https://example.com/"
+    assert output.sources[0].citation_key == "[Example1]"

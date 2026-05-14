@@ -111,7 +111,10 @@ class JobManager:
             all_blockers: list[str] = []
             writer = ReportWriterAgent(router)
             verifier = VerifierAgent(router)
-            evidence = [source.raw_text for source in research_output.sources]
+            evidence = [
+                f"{source.raw_text}\nCitation: {source.citation_key}"
+                for source in research_output.sources
+            ]
             for order, section_title in enumerate(planner_output.outline):
                 section_id = f"{job_id}-section-{order + 1}"
                 self._set_progress(
