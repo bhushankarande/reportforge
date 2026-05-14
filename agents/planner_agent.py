@@ -1,5 +1,6 @@
 """Planner agent for report outlines."""
 
+import json
 from json import JSONDecodeError
 
 from app.logging_config import get_logger
@@ -86,10 +87,35 @@ class PlannerAgent:
         start = raw_response.find("{")
         end = raw_response.rfind("}")
         if start >= 0 and end > start:
-            return PlannerOutput.model_validate_json(raw_response[start : end + 1])
+            payload = json.loads(raw_response[start : end + 1])
+            return PlannerOutput.model_validate(PlannerAgent._normalize_payload(payload))
         if fallback_job is None:
             raise JSONDecodeError("Planner response did not contain JSON", raw_response, 0)
         return PlannerAgent._fallback_output(fallback_job)
+
+    @staticmethod
+    def _normalize_payload(payload: object) -> object:
+        """Normalize common local-model JSON shapes into PlannerOutput."""
+        if not isinstance(payload, dict):
+            return payload
+        normalized = dict(payload)
+        outline = normalized.get("outline")
+        if isinstance(outline, list):
+            normalized["outline"] = [
+                item.get("section_title") or item.get("title") or item.get("name") or str(item)
+                if isinstance(item, dict)
+                else str(item)
+                for item in outline
+            ]
+        questions = normalized.get("research_questions")
+        if isinstance(questions, list):
+            normalized["research_questions"] = [
+                item.get("question") or item.get("text") or str(item)
+                if isinstance(item, dict)
+                else str(item)
+                for item in questions
+            ]
+        return normalized
 
     @staticmethod
     def _fallback_output(job: ReportJob) -> PlannerOutput:

@@ -15,6 +15,7 @@ class CreateJobRequest(BaseModel):
     type: ReportType
     depth: ReportDepth
     urls: list[str] = Field(default_factory=list)
+    provider: str = Field(default="gemini", pattern="^(gemini|groq|ollama|kimi)$")
 
 
 class CreateJobResponse(BaseModel):

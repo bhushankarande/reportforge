@@ -8,7 +8,7 @@ def test_create_job_endpoint_returns_job_id():
 
     response = client.post(
         "/jobs",
-        json={"topic": "AI reporting", "type": "market_research", "depth": "standard"},
+        json={"topic": "AI reporting", "type": "market_research", "depth": "standard", "provider": "gemini"},
     )
 
     assert response.status_code == 202
@@ -19,7 +19,7 @@ def test_get_job_progress_endpoint_returns_status():
     client = TestClient(create_app())
     created = client.post(
         "/jobs",
-        json={"topic": "AI reporting", "type": "market_research", "depth": "standard"},
+        json={"topic": "AI reporting", "type": "market_research", "depth": "standard", "provider": "gemini"},
     ).json()
 
     response = client.get(f"/jobs/{created['job_id']}/progress")
@@ -32,7 +32,7 @@ def test_job_outputs_sources_sections_and_markdown_export():
     client = TestClient(create_app())
     created = client.post(
         "/jobs",
-        json={"topic": "AI reporting", "type": "market_research", "depth": "standard"},
+        json={"topic": "AI reporting", "type": "market_research", "depth": "standard", "provider": "gemini"},
     ).json()
 
     sections = client.get(f"/jobs/{created['job_id']}/sections")

@@ -105,6 +105,19 @@ def test_planner_agent_accepts_mocked_gemini_json_style_response():
     assert output.research_questions
 
 
+def test_planner_agent_normalizes_object_based_local_model_json():
+    payload = (
+        '{"outline":[{"section_title":"Executive Summary"},{"title":"Market Overview"}],'
+        '"research_questions":[{"question":"What evidence supports adoption?"}],'
+        '"target_word_count":1200}'
+    )
+
+    output = PlannerAgent._parse_output(payload)
+
+    assert output.outline == ["Executive Summary", "Market Overview"]
+    assert output.research_questions == ["What evidence supports adoption?"]
+
+
 def test_planner_agent_enforces_deep_section_count():
     job = ReportJob(
         id="job-1",

@@ -17,6 +17,7 @@ from schemas.costs import AgentTrace, CostMetrics
 from schemas.reports import ReportJob, ReportSection, ReportStatus
 from schemas.sources import Source
 from tools.export.markdown import render_markdown
+from tools.llm.model_router import ModelRouter
 from orchestration.hitl import requires_approval
 
 logger = get_logger(__name__)
@@ -32,6 +33,7 @@ class JobManager:
         self.traces_by_job: dict[str, list[AgentTrace]] = {}
         self.progress_by_job: dict[str, JobProgress] = {}
         self.urls_by_job: dict[str, list[str]] = {}
+        self.providers_by_job: dict[str, str] = {}
 
     def create_job(self, request: CreateJobRequest, *, session_id: str = "anonymous") -> CreateJobResponse:
         """Create a pending report job."""
@@ -50,6 +52,7 @@ class JobManager:
         self.sources_by_job[job_id] = []
         self.traces_by_job[job_id] = []
         self.urls_by_job[job_id] = request.urls
+        self.providers_by_job[job_id] = request.provider
         self.progress_by_job[job_id] = JobProgress(job_id=job_id, status=job.status, current_step="queued")
         with SessionLocal() as session:
             session.merge(
@@ -92,13 +95,15 @@ class JobManager:
     def run_job(self, job_id: str) -> None:
         """Run the zero-cost MVP report workflow for an accepted job."""
         job = self.jobs[job_id]
+        provider = self.providers_by_job.get(job_id, "gemini")
+        router = ModelRouter(get_settings().model_copy(update={"active_llm_provider": provider}))
         try:
             self._set_progress(job_id, ReportStatus.RUNNING, "PlannerAgent", "planning outline", 10.0)
-            planner_output = PlannerAgent().plan(job.topic, job.type.value, job.depth.value)
+            planner_output = PlannerAgent(router).plan(job.topic, job.type.value, job.depth.value)
             self._append_trace(job_id, "PlannerAgent", job.topic, planner_output.model_dump_json())
 
             self._set_progress(job_id, ReportStatus.RUNNING, "ResearchAgent", "collecting sources", 30.0)
-            research_output = ResearchAgent().research(job_id, job.topic, self.urls_by_job.get(job_id, []))
+            research_output = ResearchAgent(router).research(job_id, job.topic, self.urls_by_job.get(job_id, []))
             self.sources_by_job[job_id] = research_output.sources
             self._append_trace(job_id, "ResearchAgent", job.topic, research_output.model_dump_json())
 
@@ -106,7 +111,7 @@ class JobManager:
             source_ids = [source.id for source in research_output.sources]
             first_section = planner_output.outline[0] if planner_output.outline else "Executive Summary"
             self._set_progress(job_id, ReportStatus.RUNNING, "ReportWriterAgent", "drafting first section", 55.0)
-            writer_output = ReportWriterAgent().write(
+            writer_output = ReportWriterAgent(router).write(
                 WriterInput(job_id=job_id, section_title=first_section, evidence=evidence)
             )
             claims = [
@@ -126,7 +131,7 @@ class JobManager:
                 sources=source_ids,
                 claims=claims,
             )
-            verifier_output = VerifierAgent().run(draft_section, research_output.sources)
+            verifier_output = VerifierAgent(router).run(draft_section, research_output.sources)
             self._append_trace(job_id, "VerifierAgent", f"{len(claims)} claims", verifier_output.model_dump_json())
 
             section_status = "blocked" if verifier_output.blockers else "drafted"
@@ -139,7 +144,7 @@ class JobManager:
             job.completed_at = None if final_status == ReportStatus.AWAITING_APPROVAL else datetime.now(timezone.utc).isoformat()
             self._set_progress(job_id, final_status, None, final_status.value, 100.0, cost=job.cost)
             self._persist_job(job)
-            logger.info("job_completed", job_id=job_id, status=job.status.value)
+            logger.info("job_completed", job_id=job_id, status=job.status.value, provider=provider)
         except Exception as exc:
             logger.exception("job_failed", job_id=job_id, error=str(exc))
             job.status = ReportStatus.FAILED
@@ -264,12 +269,20 @@ class JobManager:
         traces = self.traces_by_job[job_id]
         total_tokens = sum(trace.tokens for trace in traces)
         estimated_kimi = sum((trace.estimated_kimi_cost_usd for trace in traces), Decimal("0.00"))
+        settings = get_settings()
+        provider = self.providers_by_job.get(job_id, settings.active_llm_provider)
+        model_names = {
+            "gemini": settings.gemini_model_name,
+            "groq": settings.groq_model_name,
+            "ollama": settings.ollama_model_name,
+            "kimi": settings.kimi_model_name,
+        }
         return CostMetrics(
             prompt_tokens=total_tokens,
             completion_tokens=0,
             estimated_cost_usd=Decimal("0.00"),
             estimated_kimi_cost_usd=estimated_kimi,
-            model_name=get_settings().gemini_model_name,
+            model_name=model_names.get(provider, "unknown"),
         )
 
     def _persist_job(self, job: ReportJob) -> None:
