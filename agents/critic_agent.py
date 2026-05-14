@@ -14,7 +14,7 @@ class CriticAgent:
 
     def critique(self, report_markdown: str) -> CriticOutput:
         """Return a quality score for a report draft."""
-        tracked_model = CostTrackingModel(self.router.get_model("gemini"))
+        tracked_model = CostTrackingModel(self.router.get_model())
         tracked_model("Critique report quality")
         score = 0.8 if "[SourceID]" in report_markdown or "[" in report_markdown else 0.4
         fixes = [] if score >= 0.8 else ["Add source-backed citations."]

@@ -21,7 +21,7 @@ class ResearchAgent:
 
     def research(self, job_id: str, topic: str, urls: list[str] | None = None) -> ResearchOutput:
         """Collect URL sources, or return deterministic mock sources when none are supplied."""
-        tracked_model = CostTrackingModel(self.router.get_model("gemini"))
+        tracked_model = CostTrackingModel(self.router.get_model())
         tracked_model(f"Summarize research context for {topic}")
         url_sources = self._sources_from_urls(job_id, topic, urls or [])
         if url_sources:

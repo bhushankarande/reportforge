@@ -40,7 +40,7 @@ def test_model_router_blocks_kimi_when_cost_guard_is_zero():
     ("provider", "expected_model"),
     [
         ("gemini", "gemini-1.5-flash"),
-        ("groq", "llama-3.1-70b-versatile"),
+        ("groq", "llama-3.3-70b-versatile"),
         ("ollama", "llama3.1:8b"),
         ("kimi", "kimi-k2.6"),
     ],
@@ -58,6 +58,7 @@ def test_model_router_reads_provider_api_key_and_ollama_base_url():
     settings = Settings(
         ACTIVE_LLM_PROVIDER="gemini",
         GEMINI_API_KEY="gemini-key",
+        OLLAMA_BASE_URL="http://ollama.local:11434",
         MAX_COST_USD_PER_JOB=1.0,
     )
 
@@ -65,7 +66,7 @@ def test_model_router_reads_provider_api_key_and_ollama_base_url():
     ollama = ModelRouter(settings).get_model("ollama")
 
     assert gemini.api_key == "gemini-key"
-    assert ollama.base_url == "http://localhost:11434"
+    assert ollama.base_url == "http://ollama.local:11434"
 
 
 def test_quota_manager_enforces_gemini_daily_request_limit():

@@ -1,6 +1,9 @@
 """Provider-neutral model routing for agents."""
 
+import json
 from dataclasses import dataclass
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from app.config import Settings, get_settings
 
@@ -19,8 +22,51 @@ class RoutedModel:
     base_url: str = ""
 
     def __call__(self, prompt: str) -> str:
-        """Return a deterministic local response for free-tier/offline tests."""
+        """Call the routed provider or return deterministic text when unconfigured."""
+        if self.provider == "groq" and self.api_key:
+            return self._call_groq(prompt)
+        if self.provider == "ollama":
+            return self._call_ollama(prompt)
         return f"[{self.provider}:{self.model_name}] {prompt}"
+
+    def _call_groq(self, prompt: str) -> str:
+        """Call Groq's OpenAI-compatible chat completions API."""
+        payload = {
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+        }
+        request = Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with urlopen(request, timeout=60) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except (HTTPError, URLError) as exc:
+            raise RuntimeError(f"Groq API call failed: {exc}") from exc
+        return str(data["choices"][0]["message"]["content"])
+
+    def _call_ollama(self, prompt: str) -> str:
+        """Call a local Ollama generate endpoint."""
+        payload = {"model": self.model_name, "prompt": prompt, "stream": False}
+        request = Request(
+            f"{self.base_url.rstrip('/')}/api/generate",
+            data=json.dumps(payload).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urlopen(request, timeout=120) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except (HTTPError, URLError) as exc:
+            raise RuntimeError(f"Ollama API call failed at {self.base_url}: {exc}") from exc
+        return str(data.get("response", ""))
 
 
 class ModelRouter:
@@ -38,7 +84,7 @@ class ModelRouter:
         configs = {
             "gemini": (self.settings.gemini_model_name, self.settings.gemini_api_key, ""),
             "groq": (self.settings.groq_model_name, self.settings.groq_api_key, ""),
-            "ollama": (self.settings.ollama_model_name, "", "http://localhost:11434"),
+            "ollama": (self.settings.ollama_model_name, "", self.settings.ollama_base_url),
             "kimi": (self.settings.kimi_model_name, self.settings.kimi_api_key, ""),
         }
         if active not in configs:

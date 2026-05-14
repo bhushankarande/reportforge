@@ -56,7 +56,9 @@ REPORTFORGE_API_URL=http://localhost:8000 uv run streamlit run frontend/streamli
 |---|---|---|
 | `ACTIVE_LLM_PROVIDER` | `gemini`, `groq`, or `ollama` | Set `kimi` after raising cost guard |
 | `GEMINI_API_KEY` | Gemini Flash key, guarded at 1,500 req/day | Required for Gemini-backed agents |
-| `GROQ_API_KEY` | Optional debug fallback, guarded at 1M tok/day | Optional |
+| `GROQ_API_KEY` | Optional debug fallback, guarded at 1M tok/day | Required when `ACTIVE_LLM_PROVIDER=groq` |
+| `GROQ_MODEL_NAME` | `llama-3.3-70b-versatile` | Groq model selection |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Use `http://host.docker.internal:11434` from Docker |
 | `OLLAMA_MODEL_NAME` | `llama3.1:8b` local fallback | Use local/sidecar Ollama |
 | `KIMI_API_KEY` | Not used while cost guard is zero | Required for Kimi |
 | `MAX_COST_USD_PER_JOB` | `0.00`, blocks Kimi | Positive budget enables Kimi routing |
