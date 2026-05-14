@@ -99,7 +99,8 @@ class JobManager:
         router = ModelRouter(get_settings().model_copy(update={"active_llm_provider": provider}))
         try:
             self._set_progress(job_id, ReportStatus.RUNNING, "PlannerAgent", "planning outline", 10.0)
-            planner_output = PlannerAgent(router).plan(job.topic, job.type.value, job.depth.value)
+            planner = PlannerAgent(router)
+            planner_output = planner.run(job)
             self._append_trace(job_id, "PlannerAgent", job.topic, planner_output.model_dump_json())
 
             self._set_progress(job_id, ReportStatus.RUNNING, "ResearchAgent", "collecting sources", 30.0)
@@ -129,7 +130,7 @@ class JobManager:
                         job_id=job_id,
                         section_title=section_title,
                         evidence=evidence,
-                        rolling_summary=self._rolling_summary(sections),
+                        rolling_summary=self._writer_context(planner, section_title, sections),
                     )
                 )
                 claims = [
@@ -330,6 +331,15 @@ class JobManager:
             return ""
         snippets = [f"{section.title}: {section.content[:240]}" for section in sections[-3:]]
         return "\n".join(snippets)
+
+    @staticmethod
+    def _writer_context(planner: PlannerAgent, section_title: str, sections: list[ReportSection]) -> str:
+        """Return section plan JSON plus recent section summary for writer compatibility."""
+        section_plan = planner.section_plan_for_writer(section_title)
+        rolling_summary = JobManager._rolling_summary(sections)
+        if section_plan and rolling_summary:
+            return f"{section_plan}\n\nRolling summary:\n{rolling_summary}"
+        return section_plan or rolling_summary
 
     @staticmethod
     def _source_ids_for_claim(claim, sources: list[Source]) -> list[str]:
