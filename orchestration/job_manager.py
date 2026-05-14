@@ -30,6 +30,7 @@ class JobManager:
         self.sources_by_job: dict[str, list[Source]] = {}
         self.traces_by_job: dict[str, list[AgentTrace]] = {}
         self.progress_by_job: dict[str, JobProgress] = {}
+        self.urls_by_job: dict[str, list[str]] = {}
 
     def create_job(self, request: CreateJobRequest, *, session_id: str = "anonymous") -> CreateJobResponse:
         """Create a pending report job."""
@@ -47,6 +48,7 @@ class JobManager:
         self.jobs[job_id] = job
         self.sources_by_job[job_id] = []
         self.traces_by_job[job_id] = []
+        self.urls_by_job[job_id] = request.urls
         self.progress_by_job[job_id] = JobProgress(job_id=job_id, status=job.status, current_step="queued")
         with SessionLocal() as session:
             session.merge(
@@ -95,7 +97,7 @@ class JobManager:
             self._append_trace(job_id, "PlannerAgent", job.topic, planner_output.model_dump_json())
 
             self._set_progress(job_id, ReportStatus.RUNNING, "ResearchAgent", "collecting sources", 30.0)
-            research_output = ResearchAgent().research(job_id, job.topic)
+            research_output = ResearchAgent().research(job_id, job.topic, self.urls_by_job.get(job_id, []))
             self.sources_by_job[job_id] = research_output.sources
             self._append_trace(job_id, "ResearchAgent", job.topic, research_output.model_dump_json())
 

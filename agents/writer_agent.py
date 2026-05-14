@@ -44,7 +44,7 @@ class ReportWriterAgent:
         sources_used = self._dedupe_sources(evidence_text) or ["SourceID"]
         prompt = self._build_prompt(writer_input, evidence_text)
         self.model(prompt)
-        content = self._compose_section(writer_input.section_title, evidence_text, sources_used)
+        content = self._compose_section(writer_input.section_title, writer_input.evidence, sources_used)
         claims = self._extract_claims(writer_input.job_id, writer_input.section_title, content, sources_used)
         logger.info(
             "writer_completed",
@@ -91,13 +91,22 @@ class ReportWriterAgent:
         return list(OrderedDict.fromkeys(keys))
 
     @staticmethod
-    def _compose_section(section_title: str, evidence_text: str, sources_used: list[str]) -> str:
+    def _compose_section(section_title: str, evidence: list[str], sources_used: list[str]) -> str:
         """Compose deterministic Markdown content from approved evidence."""
-        citation = f"[{sources_used[0]}]" if sources_used else "[SourceID]"
-        if evidence_text == "No evidence supplied.":
+        if not evidence:
             return f"## {section_title}\n\nInsufficient evidence was supplied for this section."
-        first_sentence = evidence_text.split(".")[0].strip() or evidence_text[:240]
-        return f"## {section_title}\n\n{first_sentence}. {citation}"
+        paragraphs: list[str] = []
+        for index, item in enumerate(evidence[:3]):
+            citation_match = CITATION_PATTERN.search(item)
+            citation = citation_match.group(0) if citation_match else f"[{sources_used[min(index, len(sources_used) - 1)]}]"
+            clean_item = CITATION_PATTERN.sub("", item)
+            clean_item = re.sub(r"\s+", " ", clean_item).strip()
+            if not clean_item:
+                continue
+            snippet = clean_item[:420].rstrip(" ,;:")
+            paragraphs.append(f"{snippet}. {citation}")
+        body = "\n\n".join(paragraphs) if paragraphs else "Insufficient evidence was supplied for this section."
+        return f"## {section_title}\n\n{body}"
 
     @staticmethod
     def _extract_claims(

@@ -56,13 +56,13 @@ def safe_api_json(method: str, path: str, payload: dict[str, object] | None = No
         return {"error": f"Backend unavailable: {exc.reason}"}
 
 
-def submit_job(topic: str, report_type: str, depth: str, urls: list[str]) -> str | None:
-    """Submit a report job and return its id."""
+def submit_job(topic: str, report_type: str, depth: str, urls: list[str]) -> tuple[str | None, str | None]:
+    """Submit a report job and return its id or an error message."""
     payload = {"topic": topic, "type": report_type, "depth": depth, "urls": urls}
     response = safe_api_json("POST", "/jobs", payload)
     if "error" in response:
-        return None
-    return str(response["job_id"])
+        return None, str(response["error"])
+    return str(response["job_id"]), None
 
 
 def poll_job(job_id: str) -> dict[str, object]:
@@ -111,12 +111,12 @@ def main() -> None:
     st.caption(cost_preview)
 
     if st.button("Generate report", disabled=len(topic.strip()) < 3):
-        job_id = submit_job(topic, REPORT_TYPES[report_type_label], DEPTHS[depth_label], urls)
+        job_id, error = submit_job(topic, REPORT_TYPES[report_type_label], DEPTHS[depth_label], urls)
         if job_id:
             st.session_state.jobs.insert(0, job_id)
             st.success(f"Submitted job {job_id}")
         else:
-            st.error("Unable to submit job.")
+            st.error(f"Unable to submit job. {error or 'Unknown backend error.'}")
 
     if not st.session_state.jobs:
         st.info("Submit a topic to start a report.")

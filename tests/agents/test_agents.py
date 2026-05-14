@@ -3,6 +3,7 @@ from unittest.mock import Mock
 from faker import Faker
 
 from agents.planner_agent import PlannerAgent
+from agents.research_agent import ResearchAgent
 from agents.verifier_agent import VerifierAgent
 from agents.writer_agent import ReportWriterAgent
 from schemas.agent_outputs import WriterInput
@@ -90,3 +91,15 @@ def test_verifier_run_supports_claim_with_matching_source():
 
     assert output.claims[0].verification_status == VerificationStatus.SUPPORTED
     assert not output.blockers
+
+
+def test_research_agent_uses_url_sources(monkeypatch):
+    def fake_fetch(url):
+        return "Robotics LLM Source", "Robotics LLMs support task planning and collaboration."
+
+    monkeypatch.setattr("agents.research_agent.fetch_url_text", fake_fetch)
+
+    output = ResearchAgent(FakeRouter()).research("job-1", "robotics", ["https://example.com"])
+
+    assert output.sources[0].url == "https://example.com"
+    assert output.sources[0].citation_key == "[Web1]"
