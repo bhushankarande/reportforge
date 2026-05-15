@@ -439,6 +439,43 @@ def test_verifier_ignores_numbers_inside_citation_keys():
     assert not output.blockers
 
 
+def test_verifier_does_not_treat_unrelated_source_negation_as_contradiction():
+    source = Source(
+        id="source-1",
+        job_id="job-1",
+        title="Agentic commerce evidence",
+        summary="Consumer use of AI shopping assistants is increasing.",
+        raw_text=(
+            "Without intervention, retailers risk being reduced to background utilities in "
+            "agent-controlled marketplaces. More than half of consumers anticipate using AI "
+            "assistants for shopping by the end of 2025, according to Adobe."
+        ),
+        citation_key="[Bcg2]",
+    )
+    section = ReportSection(
+        id="section-1",
+        job_id="job-1",
+        title="Summary",
+        order=0,
+        claims=[
+            Claim(
+                id="claim-1",
+                section_id="section-1",
+                text=(
+                    "More than half of consumers anticipate using AI assistants for shopping "
+                    "by the end of 2025 [Bcg2]."
+                ),
+                source_ids=["source-1"],
+            )
+        ],
+    )
+
+    output = VerifierAgent(FakeRouter(), use_llm=False).run(section, [source])
+
+    assert output.claims[0].verification_status == VerificationStatus.SUPPORTED
+    assert not output.blockers
+
+
 def test_verifier_skips_llm_for_ollama_provider():
     verifier = VerifierAgent(OllamaVerifierRouter())
 

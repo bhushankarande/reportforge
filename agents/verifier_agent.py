@@ -234,9 +234,6 @@ class VerifierAgent:
         if self._has_numeric_mismatch(claim_text, evidence_text):
             return VerificationStatus.CONTRADICTED, 0.78
 
-        if self._has_negation_conflict(claim_text, evidence_text):
-            return VerificationStatus.CONTRADICTED, 0.72
-
         best_score = max(
             self._support_score(claim_text, item["evidence"])
             for item in evidence_items
