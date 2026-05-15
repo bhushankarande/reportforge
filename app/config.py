@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     groq_model_name: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL_NAME")
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
     ollama_model_name: str = Field(default="llama3.1:8b", alias="OLLAMA_MODEL_NAME")
+    ollama_timeout_seconds: int = Field(default=600, alias="OLLAMA_TIMEOUT_SECONDS")
+    ollama_num_predict: int = Field(default=2048, alias="OLLAMA_NUM_PREDICT")
     kimi_api_key: str = Field(default="", alias="KIMI_API_KEY")
     kimi_model_name: str = Field(default="kimi-k2.6", alias="KIMI_MODEL_NAME")
     max_cost_usd_per_job: float = Field(default=0.0, alias="MAX_COST_USD_PER_JOB")

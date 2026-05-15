@@ -23,6 +23,8 @@ class RoutedModel:
     model_name: str
     api_key: str = ""
     base_url: str = ""
+    timeout_seconds: int = 120
+    num_predict: int = 2048
 
     def __call__(self, prompt: str) -> str:
         """Call the routed provider or return deterministic text when unconfigured."""
@@ -87,7 +89,15 @@ class RoutedModel:
 
     def _call_ollama(self, prompt: str) -> str:
         """Call a local Ollama generate endpoint."""
-        payload = {"model": self.model_name, "prompt": prompt, "stream": False}
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.2,
+                "num_predict": self.num_predict,
+            },
+        }
         request = Request(
             f"{self.base_url.rstrip('/')}/api/generate",
             data=json.dumps(payload).encode("utf-8"),
@@ -95,7 +105,7 @@ class RoutedModel:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urlopen(request, timeout=120) as response:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except (HTTPError, URLError) as exc:
             raise RuntimeError(f"Ollama API call failed at {self.base_url}: {exc}") from exc
@@ -128,4 +138,11 @@ class ModelRouter:
         if active not in configs:
             raise ValueError(f"Unsupported provider: {active}")
         model_name, api_key, base_url = configs[active]
-        return RoutedModel(provider=active, model_name=model_name, api_key=api_key, base_url=base_url)
+        return RoutedModel(
+            provider=active,
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
+            timeout_seconds=self.settings.ollama_timeout_seconds if active == "ollama" else 120,
+            num_predict=self.settings.ollama_num_predict if active == "ollama" else 2048,
+        )

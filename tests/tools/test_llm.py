@@ -59,6 +59,8 @@ def test_model_router_reads_provider_api_key_and_ollama_base_url():
         ACTIVE_LLM_PROVIDER="gemini",
         GEMINI_API_KEY="gemini-key",
         OLLAMA_BASE_URL="http://ollama.local:11434",
+        OLLAMA_TIMEOUT_SECONDS=900,
+        OLLAMA_NUM_PREDICT=4096,
         MAX_COST_USD_PER_JOB=1.0,
     )
 
@@ -67,6 +69,8 @@ def test_model_router_reads_provider_api_key_and_ollama_base_url():
 
     assert gemini.api_key == "gemini-key"
     assert ollama.base_url == "http://ollama.local:11434"
+    assert ollama.timeout_seconds == 900
+    assert ollama.num_predict == 4096
 
 
 def test_gemini_model_uses_generate_content_endpoint(monkeypatch):

@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 
 CITATION_PATTERN = re.compile(r"\[([A-Za-z0-9_-]+)\]")
 MAX_EVIDENCE_CHARS = 24_000
-MAX_SELECTED_EVIDENCE = 10
-MIN_SECTION_WORDS = 120
+MAX_SELECTED_EVIDENCE = 18
+MIN_SECTION_WORDS = 180
 CLAIM_SUPPORT_THRESHOLD = 0.22
 
 
@@ -277,7 +277,8 @@ Rules:
 - Every factual sentence must include at least one allowed citation key.
 - Do not use a citation key unless the sentence is directly supported by that evidence.
 - If evidence is insufficient, say so clearly and do not invent details.
-- Prefer 2-4 focused paragraphs.
+- Prefer 3-6 focused paragraphs sized to the target word count.
+- Do not stop after a few sentences when more cited evidence is available.
 - Do not use bullets unless the section plan explicitly requires a list.
 
 Return this JSON schema:
@@ -466,7 +467,7 @@ Evidence:
         for chunk in scored:
             if len(selected) >= MAX_SELECTED_EVIDENCE:
                 break
-            if source_counts[chunk.citation_key] >= 3:
+            if source_counts[chunk.citation_key] >= 6:
                 continue
             if chunk.score <= 0 and topic_terms:
                 continue
@@ -531,24 +532,28 @@ Evidence:
             return cls._insufficient_evidence_content(section_title)
 
         target_words = cls._target_words(section_plan)
-        selected = chunks[:4]
+        min_words = cls._minimum_section_words(section_plan)
+        target_chunk_count = max(6, min(len(chunks), math.ceil(target_words / 35)))
+        selected = chunks[:target_chunk_count]
         paragraphs: list[str] = []
 
-        first_sentences = []
-        for chunk in selected[:2]:
-            first_sentences.append(f"{chunk.text} {chunk.citation_token}")
-        if first_sentences:
-            paragraphs.append(" ".join(cls._ensure_period(sentence) for sentence in first_sentences))
+        current: list[str] = []
+        for chunk in selected:
+            current.append(cls._ensure_period(f"{chunk.text} {chunk.citation_token}"))
+            if len(current) >= 2:
+                paragraphs.append(" ".join(current))
+                current = []
+            if len(" ".join(paragraphs).split()) >= min_words:
+                break
 
-        if len(selected) > 2:
-            second_sentences = []
-            for chunk in selected[2:4]:
-                second_sentences.append(f"{chunk.text} {chunk.citation_token}")
-            paragraphs.append(" ".join(cls._ensure_period(sentence) for sentence in second_sentences))
+        if current:
+            paragraphs.append(" ".join(current))
 
-        if len(" ".join(paragraphs).split()) < min(MIN_SECTION_WORDS, target_words * 0.6) and len(chunks) > 4:
-            extra = chunks[4]
-            paragraphs.append(cls._ensure_period(f"{extra.text} {extra.citation_token}"))
+        if len(" ".join(paragraphs).split()) < min_words:
+            for chunk in chunks[len(selected) :]:
+                paragraphs.append(cls._ensure_period(f"{chunk.text} {chunk.citation_token}"))
+                if len(" ".join(paragraphs).split()) >= min_words:
+                    break
 
         return cls._ensure_heading("\n\n".join(paragraphs), section_title)
 
@@ -564,8 +569,9 @@ Evidence:
         body = re.sub(r"^## .*$", "", content, flags=re.MULTILINE).strip()
         word_count = len(body.split())
         citations = cls._citation_keys(body)
+        min_words = cls._minimum_section_words(section_plan)
 
-        if word_count >= MIN_SECTION_WORDS and citations:
+        if word_count >= min_words and citations:
             return content
 
         fallback = cls._compose_grounded_section(section_title, chunks, section_plan)
@@ -909,7 +915,13 @@ Evidence:
             target_words = int(section_plan.get("target_words", 220))
         except (TypeError, ValueError):
             target_words = 220
-        return max(120, min(target_words, 900))
+        return max(180, min(target_words, 900))
+
+    @staticmethod
+    def _minimum_section_words(section_plan: dict[str, Any]) -> int:
+        """Return minimum acceptable section length for the requested depth."""
+        target_words = ReportWriterAgent._target_words(section_plan)
+        return max(MIN_SECTION_WORDS, min(target_words, int(target_words * 0.65)))
 
     @staticmethod
     def _slug(text: str) -> str:
