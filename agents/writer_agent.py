@@ -256,6 +256,7 @@ class ReportWriterAgent:
     ) -> str:
         """Build a strict JSON-only section generation prompt."""
         allowed_citations = ", ".join(chunk.citation_token for chunk in selected_chunks)
+        minimum_source_count = self._minimum_source_diversity(selected_chunks)
         target_words = self._target_words(section_plan)
         plan_text = json.dumps(section_plan, ensure_ascii=False) if section_plan else "{}"
 
@@ -276,6 +277,7 @@ Rules:
 - Do not introduce facts that are not directly supported by the evidence.
 - Every factual sentence must include at least one allowed citation key.
 - Do not use a citation key unless the sentence is directly supported by that evidence.
+- Use evidence from at least {minimum_source_count} distinct citation keys when that many relevant sources are available.
 - If evidence is insufficient, say so clearly and do not invent details.
 - Prefer 3-6 focused paragraphs sized to the target word count.
 - Do not stop after a few sentences when more cited evidence is available.
@@ -445,7 +447,7 @@ Evidence:
         chunks: list[EvidenceChunk],
         topic_terms: set[str],
     ) -> list[EvidenceChunk]:
-        """Rank and select compact evidence for the section."""
+        """Rank and select compact evidence while preserving source diversity."""
         scored: list[EvidenceChunk] = []
 
         for chunk in chunks:
@@ -459,23 +461,49 @@ Evidence:
                 )
             )
 
-        scored.sort(key=lambda chunk: chunk.score, reverse=True)
+        if topic_terms:
+            scored = [chunk for chunk in scored if chunk.score > 0]
+
+        if not scored:
+            scored = [
+                EvidenceChunk(
+                    chunk_id=chunk.chunk_id,
+                    text=chunk.text,
+                    citation_key=chunk.citation_key,
+                    score=cls._chunk_score(chunk.text, set()),
+                )
+                for chunk in chunks
+            ]
+
+        grouped: dict[str, list[EvidenceChunk]] = defaultdict(list)
+        for chunk in sorted(scored, key=lambda item: item.score, reverse=True):
+            grouped[chunk.citation_key].append(chunk)
+
+        source_order = sorted(
+            grouped,
+            key=lambda citation_key: grouped[citation_key][0].score,
+            reverse=True,
+        )
 
         selected: list[EvidenceChunk] = []
         source_counts: dict[str, int] = defaultdict(int)
+        max_per_source = max(3, math.ceil(MAX_SELECTED_EVIDENCE / max(len(source_order), 1)))
 
-        for chunk in scored:
-            if len(selected) >= MAX_SELECTED_EVIDENCE:
+        while len(selected) < MAX_SELECTED_EVIDENCE:
+            added_this_round = False
+            for citation_key in source_order:
+                if len(selected) >= MAX_SELECTED_EVIDENCE:
+                    break
+                if source_counts[citation_key] >= max_per_source:
+                    continue
+                source_chunks = grouped[citation_key]
+                if source_counts[citation_key] >= len(source_chunks):
+                    continue
+                selected.append(source_chunks[source_counts[citation_key]])
+                source_counts[citation_key] += 1
+                added_this_round = True
+            if not added_this_round:
                 break
-            if source_counts[chunk.citation_key] >= 6:
-                continue
-            if chunk.score <= 0 and topic_terms:
-                continue
-            selected.append(chunk)
-            source_counts[chunk.citation_key] += 1
-
-        if not selected and scored:
-            selected = scored[: min(5, len(scored))]
 
         return selected
 
@@ -569,15 +597,24 @@ Evidence:
         body = re.sub(r"^## .*$", "", content, flags=re.MULTILINE).strip()
         word_count = len(body.split())
         citations = cls._citation_keys(body)
+        available_sources = cls._sources_from_chunks(chunks)
+        minimum_sources = cls._minimum_source_diversity(chunks)
         min_words = cls._minimum_section_words(section_plan)
 
-        if word_count >= min_words and citations:
+        has_enough_source_diversity = len(set(citations)) >= minimum_sources
+
+        if word_count >= min_words and citations and has_enough_source_diversity:
             return content
 
         fallback = cls._compose_grounded_section(section_title, chunks, section_plan)
         fallback_body = re.sub(r"^## .*$", "", fallback, flags=re.MULTILINE).strip()
+        fallback_citations = cls._citation_keys(fallback_body)
+        fallback_has_enough_sources = len(set(fallback_citations)) >= min(
+            minimum_sources,
+            len(available_sources),
+        )
 
-        if len(fallback_body.split()) >= word_count:
+        if fallback_has_enough_sources or len(fallback_body.split()) >= word_count:
             return fallback
 
         return content
@@ -762,6 +799,14 @@ Evidence:
     def _sources_from_chunks(chunks: list[EvidenceChunk]) -> list[str]:
         """Return unique citation keys from chunks."""
         return list(OrderedDict.fromkeys(chunk.citation_key for chunk in chunks))
+
+    @staticmethod
+    def _minimum_source_diversity(chunks: list[EvidenceChunk]) -> int:
+        """Return minimum citation diversity expected for selected evidence."""
+        source_count = len(ReportWriterAgent._sources_from_chunks(chunks))
+        if source_count <= 1:
+            return 1
+        return min(3, source_count)
 
     @staticmethod
     def _sources_from_claims(claims: list[Claim]) -> list[str]:

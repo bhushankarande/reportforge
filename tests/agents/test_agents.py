@@ -266,6 +266,67 @@ def test_writer_fallback_respects_section_word_target():
     assert len(body.split()) >= 200
     assert "[Web1]" in draft.content
     assert "[Web2]" in draft.content
+    assert "[Web3]" in draft.content
+
+
+def test_writer_rebalances_when_model_overuses_one_source():
+    class OneSourceModel:
+        provider = "gemini"
+        model_name = "gemini-test"
+
+        def __call__(self, prompt):
+            return (
+                '{"paragraphs":["AI shopping agents are changing consumer behavior by moving '
+                'product discovery into conversational decision support. [Web1] Consumers can '
+                'describe preferences and constraints while assistants narrow options and compare '
+                'tradeoffs. [Web1] Retailers face a shift in where influence happens because the '
+                'agent can mediate product visibility, choice, and checkout. [Web1] Trust and '
+                'data quality shape whether consumers accept AI shopping recommendations. [Web1] '
+                'The shopping journey is increasingly mediated by agentic interfaces. [Web1]"],'
+                '"sources_used":["Web1"]}'
+            )
+
+    class OneSourceRouter:
+        def get_model(self, provider=None):
+            return OneSourceModel()
+
+    evidence = [
+        (
+            "AI shopping agents are changing consumer behavior by moving product discovery "
+            "from keyword search into conversational decision support. Consumers can describe "
+            "preferences, budgets, constraints, and purchase timing in natural language while "
+            "the assistant narrows options and compares tradeoffs. Retailers face a shift in "
+            "where influence happens because the agent can mediate product visibility, choice, "
+            "and checkout steps before a shopper reaches a retailer website. [Web1]"
+        ),
+        (
+            "Retailers using agentic commerce need AI-ready product content, reliable pricing, "
+            "inventory availability, and clear policies for data use because AI assistants rely "
+            "on structured signals when presenting options. Brand-owned assistants can preserve "
+            "direct customer relationships by capturing preference data and explaining why a "
+            "recommendation fits the shopper's needs. [Web2]"
+        ),
+        (
+            "Consumer response depends on whether the shopping agent reduces friction without "
+            "making the experience feel opaque. Useful agents ask clarifying questions, remember "
+            "constraints, compare relevant products, and surface evidence such as reviews, price, "
+            "delivery timing, and return policies. [Web3]"
+        ),
+    ]
+    section_plan = '{"section_plan":{"target_words":420,"research_questions":["How do consumers respond to AI shopping agents?"]}}'
+
+    draft = ReportWriterAgent(OneSourceRouter()).write(
+        WriterInput(
+            job_id="job-1",
+            section_title="Consumer Response",
+            evidence=evidence,
+            rolling_summary=section_plan,
+        )
+    )
+
+    assert "[Web1]" in draft.content
+    assert "[Web2]" in draft.content
+    assert "[Web3]" in draft.content
 
 
 def test_writer_does_not_extract_citation_only_claims():
