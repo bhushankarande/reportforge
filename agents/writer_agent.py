@@ -19,8 +19,8 @@ from tools.llm.model_router import ModelRouter
 logger = get_logger(__name__)
 
 CITATION_PATTERN = re.compile(r"\[([A-Za-z0-9_-]+)\]")
-MAX_EVIDENCE_CHARS = 24_000
-MAX_SELECTED_EVIDENCE = 18
+MAX_EVIDENCE_CHARS = 48_000
+MAX_SELECTED_EVIDENCE = 30
 MIN_SECTION_WORDS = 180
 CLAIM_SUPPORT_THRESHOLD = 0.22
 
@@ -403,25 +403,26 @@ Evidence:
 
     @classmethod
     def _evidence_chunks(cls, evidence: list[str]) -> list[EvidenceChunk]:
-        """Convert raw evidence strings into cited sentence-level chunks."""
+        """Convert raw evidence strings into cited sentence-level chunks.
+
+        Each source receives a fair character budget before scoring. Without
+        this, a long first article can consume the entire writer context and
+        prevent later sources from being parsed at all.
+        """
         chunks: list[EvidenceChunk] = []
         seen: set[tuple[str, str]] = set()
-        total_chars = 0
+        evidence_items = [item for item in evidence if item]
+        if not evidence_items:
+            return chunks
 
-        for item_index, item in enumerate(evidence, start=1):
-            if not item:
-                continue
+        per_item_budget = max(2_500, MAX_EVIDENCE_CHARS // len(evidence_items))
 
-            if total_chars >= MAX_EVIDENCE_CHARS:
-                break
-
-            raw_item = item[: max(0, MAX_EVIDENCE_CHARS - total_chars)]
-            total_chars += len(raw_item)
-
-            citation_keys = cls._citation_keys(raw_item)
+        for item_index, item in enumerate(evidence_items, start=1):
+            citation_keys = cls._citation_keys(item)
             if not citation_keys:
                 continue
 
+            raw_item = item[:per_item_budget]
             clean_text = cls._clean_evidence_text(raw_item)
             sentences = cls._split_evidence_sentences(clean_text)
 

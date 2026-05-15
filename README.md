@@ -60,6 +60,8 @@ REPORTFORGE_API_URL=http://localhost:8000 uv run streamlit run frontend/streamli
 | `GROQ_MODEL_NAME` | `llama-3.3-70b-versatile` | Groq model selection |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Use `http://host.docker.internal:11434` from Docker |
 | `OLLAMA_MODEL_NAME` | `llama3.1:8b` local fallback | Use local/sidecar Ollama |
+| `OLLAMA_NUM_CTX` | `16384` for local report generation | Raise cautiously for larger local models |
+| `OLLAMA_NUM_PREDICT` | `3072` output tokens | Raise for longer sections if RAM allows |
 | `KIMI_API_KEY` | Not used while cost guard is zero | Required for Kimi |
 | `MAX_COST_USD_PER_JOB` | `0.00`, blocks Kimi | Positive budget enables Kimi routing |
 | `ENABLE_COST_PREVIEW` | `true`, logs Kimi-equivalent estimate | Keep enabled |

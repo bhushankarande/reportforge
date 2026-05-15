@@ -113,7 +113,7 @@ class JobManager:
             writer = ReportWriterAgent(router)
             verifier = VerifierAgent(router, use_llm=False)
             evidence = [
-                f"{source.raw_text}\nCitation: {source.citation_key}"
+                f"Citation: {source.citation_key}\nTitle: {source.title}\nURL: {source.url or ''}\n\n{source.raw_text}"
                 for source in research_output.sources
             ]
             for order, section_title in enumerate(planner_output.outline):

@@ -24,6 +24,7 @@ class RoutedModel:
     api_key: str = ""
     base_url: str = ""
     timeout_seconds: int = 120
+    num_ctx: int = 16384
     num_predict: int = 2048
 
     def __call__(self, prompt: str) -> str:
@@ -95,6 +96,7 @@ class RoutedModel:
             "stream": False,
             "options": {
                 "temperature": 0.2,
+                "num_ctx": self.num_ctx,
                 "num_predict": self.num_predict,
             },
         }
@@ -144,5 +146,6 @@ class ModelRouter:
             api_key=api_key,
             base_url=base_url,
             timeout_seconds=self.settings.ollama_timeout_seconds if active == "ollama" else 120,
+            num_ctx=self.settings.ollama_num_ctx if active == "ollama" else 16384,
             num_predict=self.settings.ollama_num_predict if active == "ollama" else 2048,
         )

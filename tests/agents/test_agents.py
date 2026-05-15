@@ -329,6 +329,43 @@ def test_writer_rebalances_when_model_overuses_one_source():
     assert "[Web3]" in draft.content
 
 
+def test_writer_parses_later_sources_when_first_source_is_long():
+    long_first_source = (
+        "Citation: [Web1]\n"
+        + (
+            "AI shopping agents can influence product discovery and comparison through "
+            "conversational decision support. Consumers may use assistants to narrow choices "
+            "and compare tradeoffs before checkout. "
+        )
+        * 140
+    )
+    evidence = [
+        long_first_source,
+        (
+            "Citation: [Web2]\n"
+            "Retailers using agentic commerce need reliable pricing, inventory availability, "
+            "and AI-ready product content because assistants rely on structured signals when "
+            "presenting options. Brand-owned assistants can preserve direct customer "
+            "relationships by explaining why a recommendation fits the shopper's needs."
+        ),
+        (
+            "Citation: [Web3]\n"
+            "Consumer response depends on whether the shopping agent reduces friction without "
+            "making the experience feel opaque. Useful agents ask clarifying questions, remember "
+            "constraints, compare relevant products, and surface evidence such as reviews, price, "
+            "delivery timing, and return policies."
+        ),
+    ]
+
+    chunks = ReportWriterAgent._evidence_chunks(evidence)
+    selected = ReportWriterAgent._select_evidence_chunks(
+        chunks,
+        ReportWriterAgent._topic_terms("consumer responses to AI agent shopping"),
+    )
+
+    assert {"Web1", "Web2", "Web3"}.issubset(set(ReportWriterAgent._sources_from_chunks(selected)))
+
+
 def test_writer_does_not_extract_citation_only_claims():
     content = "## Sources\n\n[Web3]\n\n[Web1]\n\n[Web2]\n\n[Web4]"
 
