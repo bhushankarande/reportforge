@@ -141,7 +141,7 @@ curl http://localhost:8000/costs/quota
 
 Free tier:
 
-- Gemini 1.5 Flash: `$0.00` actual cost, 1,500 requests/day guard.
+- Gemini 2.5 Flash: `$0.00` actual cost, 1,500 requests/day guard.
 - Groq fallback: `$0.00` actual cost, 1M tokens/day guard.
 - Ollama: local fallback, no network quota.
 
