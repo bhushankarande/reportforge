@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+.DS_Store
 
 # Virtual environments
 .venv
@@ -12,6 +13,8 @@ wheels/
 # Tool caches
 .pytest_cache/
 .ruff_cache/
+.understand-anything/
+graphify-out/
 
 # Environment files
 .env

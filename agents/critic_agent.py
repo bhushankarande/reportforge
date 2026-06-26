@@ -4,11 +4,23 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
 from schemas.agent_outputs import CriticOutput
 from orchestration.cost_tracking import CostTrackingModel
 from tools.llm.model_router import ModelRouter
+
+
+@dataclass(frozen=True)
+class CriticInput:
+    """Inputs for final report quality review."""
+
+    report_markdown: str
+    sources: Sequence[Any] = ()
+    verifier_results: Sequence[Any] = ()
+    report_plan: Any | None = None
+    section_outputs: Sequence[Any] = ()
 
 
 class CriticAgent:
@@ -26,9 +38,20 @@ class CriticAgent:
         r"\{\{.*?\}\}",
     ]
 
-    def __init__(self, router: ModelRouter | None = None) -> None:
+    def __init__(self, router: ModelRouter | None = None, *, use_llm: bool = True) -> None:
         """Initialize critic with model router."""
         self.router = router or ModelRouter()
+        self.use_llm = use_llm
+
+    def run(self, critic_input: CriticInput) -> CriticOutput:
+        """Review a final report draft from an explicit input contract."""
+        return self.critique(
+            critic_input.report_markdown,
+            sources=critic_input.sources,
+            verifier_results=critic_input.verifier_results,
+            report_plan=critic_input.report_plan,
+            section_outputs=critic_input.section_outputs,
+        )
 
     def critique(
         self,
@@ -49,27 +72,28 @@ class CriticAgent:
         llm_score: float | None = None
         llm_fixes: list[str] = []
 
-        try:
-            prompt = self._build_llm_prompt(
-                report_markdown=report_markdown,
-                sources=sources or [],
-                verifier_results=verifier_results or [],
-                report_plan=report_plan,
-                section_outputs=section_outputs or [],
-                deterministic_fixes=deterministic_fixes,
-            )
-            raw_response = CostTrackingModel(self.router.get_model())(prompt)
-            parsed = self._parse_llm_response(raw_response)
-            if parsed:
-                llm_score = parsed.get("quality_score")
-                llm_fixes = parsed.get("fixes", []) or []
-        except Exception as exc:
-            llm_fixes = [
-                (
-                    "Critic LLM review failed; deterministic checks were used instead. "
-                    f"Internal error: {type(exc).__name__}."
+        if self.use_llm:
+            try:
+                prompt = self._build_llm_prompt(
+                    report_markdown=report_markdown,
+                    sources=sources or [],
+                    verifier_results=verifier_results or [],
+                    report_plan=report_plan,
+                    section_outputs=section_outputs or [],
+                    deterministic_fixes=deterministic_fixes,
                 )
-            ]
+                raw_response = CostTrackingModel(self.router.get_model())(prompt)
+                parsed = self._parse_llm_response(raw_response)
+                if parsed:
+                    llm_score = parsed.get("quality_score")
+                    llm_fixes = parsed.get("fixes", []) or []
+            except Exception as exc:
+                llm_fixes = [
+                    (
+                        "Critic LLM review failed; deterministic checks were used instead. "
+                        f"Internal error: {type(exc).__name__}."
+                    )
+                ]
 
         final_score = (
             min(deterministic_score, self._clamp_score(llm_score))
@@ -98,7 +122,9 @@ class CriticAgent:
             return 0.0, ["Report is empty. Generate report sections before critique."]
         if word_count < 300:
             score -= 0.25
-            fixes.append("Report is very short; expand sections with evidence, interpretation, and conclusions.")
+            fixes.append(
+                "Report is very short; expand sections with evidence, interpretation, and conclusions."
+            )
 
         placeholders = self._find_placeholders(text)
         if placeholders:
@@ -265,10 +291,10 @@ Final report markdown:
         """Extract possible source IDs from Source-like objects."""
         source_ids: set[str] = set()
         for source in sources:
-            for attr in ("source_id", "id", "uid", "key"):
+            for attr in ("source_id", "id", "uid", "key", "citation_key"):
                 value = self._get_value(source, attr)
                 if value:
-                    source_ids.add(str(value).strip())
+                    source_ids.add(str(value).strip().strip("[]"))
         return {source_id for source_id in source_ids if source_id}
 
     def _extract_citation_tokens(self, text: str) -> set[str]:
@@ -304,7 +330,9 @@ Final report markdown:
         ]
         if not paragraphs:
             return None
-        cited_paragraphs = [paragraph for paragraph in paragraphs if self._extract_citation_tokens(paragraph)]
+        cited_paragraphs = [
+            paragraph for paragraph in paragraphs if self._extract_citation_tokens(paragraph)
+        ]
         coverage = len(cited_paragraphs) / max(len(paragraphs), 1)
         if citation_tokens and coverage < 0.35:
             return (
@@ -370,7 +398,9 @@ Final report markdown:
                 markers.append(pattern.replace(r"\b", "").replace("\\", ""))
         return markers
 
-    def _summarize_sources(self, sources: Sequence[Any], max_sources: int = 30) -> list[dict[str, Any]]:
+    def _summarize_sources(
+        self, sources: Sequence[Any], max_sources: int = 30
+    ) -> list[dict[str, Any]]:
         """Create a compact source summary for the critic prompt."""
         summary: list[dict[str, Any]] = []
         for source in list(sources)[:max_sources]:
@@ -380,7 +410,8 @@ Final report markdown:
                 "url": self._get_value(source, "url"),
                 "publisher": self._get_value(source, "publisher"),
                 "published_at": self._get_value(source, "published_at"),
-                "source_type": self._get_value(source, "source_type") or self._get_value(source, "type"),
+                "source_type": self._get_value(source, "source_type")
+                or self._get_value(source, "type"),
             }
             summary.append({key: value for key, value in item.items() if value is not None})
         return summary

@@ -104,7 +104,7 @@ If an agent fails after 3 retries:
 1. Job status becomes `FAILED`.
 2. Partial output and traces are preserved.
 3. The user can call `POST /jobs/{id}/retry`.
-4. The workflow resumes from the last checkpoint.
+4. Retry reruns the live pipeline with the stored job inputs.
 
 ## Planned Checks
 

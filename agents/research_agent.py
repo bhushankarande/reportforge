@@ -14,8 +14,10 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from app.logging_config import get_logger
 from schemas.agent_outputs import ResearchOutput
-from schemas.sources import Source
+from schemas.sources import EvidenceChunk, Source
 from tools.llm.model_router import ModelRouter
+from tools.rag.evidence_pipeline import EvidencePipeline, EvidencePipelineResult, RawEvidence
+from tools.rag.hybrid_retriever import HybridRetriever
 from tools.search.url_fetcher import URLFetchError, fetch_url_text
 
 logger = get_logger(__name__)
@@ -139,6 +141,8 @@ class ResearchAgent:
         self.raise_on_total_failure = raise_on_total_failure
         self.min_relevance_score = min_relevance_score
         self.last_failures: list[SourceFailure] = []
+        self.last_evidence_chunks: list[EvidenceChunk] = []
+        self.last_retriever: HybridRetriever | None = None
 
     def research(
         self,
@@ -153,6 +157,8 @@ class ResearchAgent:
         default instead of fabricating mock research.
         """
         self.last_failures = []
+        self.last_evidence_chunks = []
+        self.last_retriever = None
         prepared_urls = self._prepare_urls(urls or [])
 
         if not prepared_urls:
@@ -161,7 +167,10 @@ class ResearchAgent:
                 return self._mock_output(job_id=job_id, topic=topic)
             return ResearchOutput(sources=[])
 
-        sources = self._sources_from_urls(job_id=job_id, topic=topic, urls=prepared_urls)
+        evidence = self._evidence_from_urls(job_id=job_id, topic=topic, urls=prepared_urls)
+        sources = evidence.sources
+        self.last_evidence_chunks = evidence.chunks
+        self.last_retriever = evidence.retriever
 
         if not sources:
             message = (
@@ -187,9 +196,14 @@ class ResearchAgent:
         )
         return ResearchOutput(sources=sources)
 
-    def _sources_from_urls(self, job_id: str, topic: str, urls: list[str]) -> list[Source]:
-        """Fetch user-provided URLs into source records."""
-        sources: list[Source] = []
+    def _evidence_from_urls(
+        self,
+        job_id: str,
+        topic: str,
+        urls: list[str],
+    ) -> EvidencePipelineResult:
+        """Fetch user-provided URLs into normalized evidence records."""
+        evidence_items: list[RawEvidence] = []
         topic_terms = self._topic_terms(topic)
 
         for index, url in enumerate(urls, start=1):
@@ -236,20 +250,19 @@ class ResearchAgent:
                 continue
 
             summary = self._extractive_summary(excerpt=excerpt, max_chars=self.MAX_SUMMARY_CHARS)
-            sources.append(
-                Source(
-                    id=f"{job_id}-web-source-{len(sources) + 1}",
-                    job_id=job_id,
+            evidence_items.append(
+                RawEvidence(
+                    source_type="web",
                     title=title or self._fallback_title(url),
                     url=url,
+                    text=text,
                     summary=summary,
                     relevance_score=relevance_score,
-                    raw_text=text[: self.MAX_RAW_TEXT_CHARS],
                     citation_key=citation_key,
                 )
             )
 
-        return sources
+        return EvidencePipeline(job_id).ingest(evidence_items)
 
     def _record_failure(self, url: str, reason: str, detail: str = "") -> None:
         """Store and log a source failure."""
@@ -530,8 +543,7 @@ class ResearchAgent:
         if not self.last_failures:
             return "None"
         return "; ".join(
-            f"{failure.url} -> {failure.reason}: {failure.detail}"
-            for failure in self.last_failures
+            f"{failure.url} -> {failure.reason}: {failure.detail}" for failure in self.last_failures
         )
 
     @staticmethod

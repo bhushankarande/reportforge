@@ -1,12 +1,13 @@
 # ReportForge
 
-ReportForge is a local-first app for generating structured, citation-grounded business reports. It uses a Streamlit interface, a FastAPI backend, and a multi-agent workflow for planning, research, writing, verification, and export.
+ReportForge is a local-first app for generating structured, citation-grounded business reports. It uses a Streamlit interface, a FastAPI backend, and one live pipeline for planning, evidence collection, writing, verification, review, and export.
 
 ## Features
 
-- Generate reports from a topic
-- Use Gemini, Groq, or local Ollama models
+- Generate reports from a topic, URLs, and uploaded files
+- Use Gemini, Groq, local Ollama, or guarded Kimi routing
 - Review sources and progress
+- Approve human-review reports and regenerate sections
 - Export reports as Markdown, PDF, or DOCX
 - Track usage and estimated costs
 
@@ -79,6 +80,19 @@ uv run pytest
 uv run ruff check .
 docker compose config --quiet
 ```
+
+## Live Architecture
+
+The production path is:
+
+```text
+Streamlit -> FastAPI routers -> JobManager -> ReportPipeline
+Planner -> Evidence/RAG -> Writer -> Verifier -> Critic
+```
+
+Markdown, PDF, and DOCX exports all go through `FormatterAgent.export_artifact`.
+Older checkpoint workflow files were removed during the cleanup phase; retry is
+a full live-pipeline rerun.
 
 ## License
 

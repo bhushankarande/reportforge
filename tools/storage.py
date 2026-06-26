@@ -14,7 +14,7 @@ class StorageManager:
 
     def ensure(self) -> None:
         """Create all runtime storage subdirectories."""
-        for name in ["uploads", "reports", "charts", "indexes", "checkpoints", "llm_logs"]:
+        for name in ["uploads", "reports", "charts", "indexes", "llm_logs"]:
             (self.root / name).mkdir(parents=True, exist_ok=True)
 
     def job_dir(self, job_id: str, area: str) -> Path:

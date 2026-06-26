@@ -22,7 +22,7 @@ auth/session complexity before the report workflow is validated.
 
 Rationale: AgentScope is assigned for multi-agent orchestration, conversation,
 ReAct loops, handoffs, and graph-like workflow coordination. It belongs in
-`orchestration/` with pipeline assembly and checkpoint-aware execution.
+`orchestration/` with pipeline assembly and durable job execution.
 
 Alternatives considered: Hand-rolled orchestration was rejected because the
 constitution requires AgentScope pipelines.
@@ -49,9 +49,9 @@ debugging, compliance, and provider migration require call-level traces.
 
 ## Decision: SQLite MVP with Postgres Migration Path
 
-Rationale: SQLite is sufficient for local MVP job state, traces, cost metrics,
-and checkpoints. Docker Compose includes a Postgres profile/path for migration
-without forcing early operational complexity.
+Rationale: SQLite is sufficient for local MVP job state, sections, sources,
+traces, and cost metrics. Docker Compose includes a Postgres profile/path for
+migration without forcing early operational complexity.
 
 Alternatives considered: Starting on Postgres adds setup cost for local testing.
 File-only persistence is not adequate for traceability and replay.

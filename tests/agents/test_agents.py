@@ -2,6 +2,7 @@ from unittest.mock import Mock
 
 from faker import Faker
 
+from agents.critic_agent import CriticAgent, CriticInput
 from agents.planner_agent import PlannerAgent
 from agents.research_agent import ResearchAgent
 from agents.verifier_agent import VerifierAgent
@@ -88,6 +89,29 @@ def test_writer_and_verifier_keep_sourced_claim_exportable():
 
     assert not verified.blockers
     assert verified.claims[0].source_ids
+
+
+def test_critic_run_accepts_explicit_input_and_source_citation_keys():
+    source = Source(
+        id="source-1",
+        job_id="job-1",
+        title="Robotics Source",
+        raw_text="Robotics adoption evidence supports planning workflows.",
+        citation_key="[Web1]",
+    )
+    paragraph = (
+        "Robotics adoption evidence supports planning workflows, operator coordination, "
+        "implementation governance, and measurable rollout decisions across teams. "
+    ) * 28
+
+    output = CriticAgent(FakeRouter(), use_llm=False).run(
+        CriticInput(
+            report_markdown=f"## Executive Summary\n\n{paragraph} [Web1]\n\n## Recommendations\n\n{paragraph} [Web1]",
+            sources=[source],
+        )
+    )
+
+    assert all("citations do not match" not in fix for fix in output.fixes)
 
 
 def test_writer_uses_model_generated_content_when_available():

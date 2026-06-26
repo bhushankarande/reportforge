@@ -39,10 +39,10 @@
 
 ## Phase 4: Orchestration (Depends on Phase 3 — pipeline coordination only)
 
-- [x] 4.1 State machine: orchestration/state.py — WorkflowState with SQLite persistence
-- [x] 4.2 Checkpoints: orchestration/checkpoints.py — save/resume JSON checkpoints
+- [x] 4.1 Live pipeline state: orchestration/job_manager.py — JobManager owns lifecycle, progress, retry, and persistence handoff
+- [x] 4.2 Persistence rehydration: app/services/report_store.py — reload jobs, sections, sources, traces, URLs, and provider choices
 - [x] 4.3 Cost tracking wrapper: orchestration/cost_tracking.py — CostTrackingModel decorator for AgentScope. Calls tools/llm/cost_estimator.py for math. Logs $0.00 actual + Kimi estimate.
-- [x] 4.4 AgentScope workflow graph: orchestration/workflow.py — sequential + parallel pipelines. Imports ModelRouter from tools/llm/; does not own provider logic.
+- [x] 4.4 ReportPipeline: orchestration/job_manager.py — single live Planner -> Evidence/RAG -> Writer -> Verifier -> Critic sequence
 - [x] 4.5 HITL logic: orchestration/hitl.py — pause/resume for human approval
 - [x] 4.6 Job manager: orchestration/job_manager.py — queue, status updates, progress streaming
 

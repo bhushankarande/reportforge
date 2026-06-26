@@ -16,7 +16,7 @@
 - Q: How strict should source confidence be before export? → A: Export is blocked for unsourced claims; low-confidence sourced claims show warnings.
 - Q: How long should uploaded documents and generated artifacts be retained? → A: Retain during the anonymous session; users explicitly save or export final artifacts.
 - Q: How many report jobs may run concurrently per anonymous session? → A: Up to three active report jobs per anonymous session.
-- Q: Which report jobs require a human checkpoint before final export? → A: Investment Memo, Policy Brief, and all Deep reports require review.
+- Q: Which report jobs require a human review gate before final export? → A: Investment Memo, Policy Brief, and all Deep reports require review.
 
 Additional resolutions provided by the user:
 
@@ -40,8 +40,7 @@ Additional resolutions provided by the user:
 - Citations use bracket keys such as `[AuthorYear]` or `[SourceID]`, with a full
   bibliography in the appendix.
 - If an agent fails after 3 retries, the job is marked `FAILED`, partial output
-  is stored, the user is notified, and manual retry from the last checkpoint is
-  allowed.
+  is stored, the user is notified, and manual retry reruns the live pipeline.
 - MVP authentication is anonymous. V2 adds optional API key authentication.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -143,16 +142,16 @@ remain present.
 
 ---
 
-### User Story 5 - Review Checkpoint Reports Before Export (Priority: P5)
+### User Story 5 - Review Gated Reports Before Export (Priority: P5)
 
-A user receives an explicit checkpoint before final export for reports that may
+A user receives an explicit review gate before final export for reports that may
 affect financial or policy decisions, plus any report generated at Deep depth.
 
 **Why this priority**: High-stakes outputs require human review before they are
 packaged as final deliverables.
 
 **Independent Test**: A user generating an Investment Memo, Policy Brief, or
-Deep report sees a final review checkpoint and cannot export until they approve
+Deep report sees a final review gate and cannot export until they approve
 or request fixes.
 
 **Acceptance Scenarios**:
@@ -160,7 +159,7 @@ or request fixes.
 1. **Given** an Investment Memo, Policy Brief, or Deep report is generated,
    **When** generation reaches final review, **Then** the system requires human
    approval before export.
-2. **Given** the user requests fixes at the checkpoint, **When** revisions run,
+2. **Given** the user requests fixes at the review gate, **When** revisions run,
    **Then** the report returns to review with updated verification results.
 
 ### Edge Cases
@@ -178,21 +177,20 @@ or request fixes.
   intermediate evidence.
 - CSV or XLSX files may contain missing values, mixed data types, or no useful
   numeric columns.
-- Concurrent report jobs from different sessions must not share sources,
-  checkpoints, costs, or generated sections.
+- Concurrent report jobs from different sessions must not share sources, costs,
+  or generated sections.
 - A session that already has three active report jobs must queue or reject new
   job starts with a clear message.
 - Browser refresh, server restart, or process crash must not discard completed
   report steps.
 - If an agent fails after 3 retries, the job is marked `FAILED`, partial output
-  is preserved, the user is notified, and manual retry from the last checkpoint
-  remains available.
+  is preserved, the user is notified, and manual retry reruns the live pipeline.
 - Session expiration or user-initiated clearing removes session-retained uploads,
-  intermediate artifacts, checkpoints, and generated outputs that were not
-  explicitly exported or saved.
+  intermediate artifacts, and generated outputs that were not explicitly
+  exported or saved.
 - Export is blocked when verification finds unsourced claims or unresolved
   hallucination flags.
-- Human review checkpoints for Investment Memo, Policy Brief, and Deep reports
+- Human review gates for Investment Memo, Policy Brief, and Deep reports
   must be visible and cannot be bypassed by a normal export action.
 
 ## Requirements *(mandatory)*
@@ -244,19 +242,19 @@ or request fixes.
   for verified reports.
 - **FR-017a**: System MUST cite claims using bracket keys such as `[AuthorYear]`
   or `[SourceID]` and include a full bibliography appendix.
-- **FR-018**: System MUST require a human approval checkpoint before final
+- **FR-018**: System MUST require a human approval gate before final
   export for Investment Memo, Policy Brief, and all Deep reports.
 - **FR-019**: System MUST allow users to regenerate one report section without
   regenerating the entire report.
 - **FR-020**: System MUST store report job traces, agent steps, source metadata,
   verification results, costs, and final artifacts for debugging and compliance.
-- **FR-021**: System MUST resume interrupted report jobs from the last completed
-  checkpoint without leaking state across sessions.
+- **FR-021**: System MUST preserve stored job data and expose retry for failed
+  jobs without leaking state across sessions.
 - **FR-021a**: System MUST mark a report job `FAILED` after an agent fails 3
-  retries, preserve partial output, notify the user, and allow manual retry from
-  the last checkpoint.
+  retries, preserve partial output, notify the user, and allow manual retry by
+  rerunning the live pipeline.
 - **FR-022**: System MUST support multiple concurrent report jobs while keeping
-  job inputs, sources, costs, checkpoints, and outputs isolated.
+  job inputs, sources, costs, and outputs isolated.
 - **FR-022a**: System MUST isolate each report job's retrieval index from other
   jobs.
 - **FR-023**: System MUST support long report generation workflows using context
@@ -265,10 +263,10 @@ or request fixes.
   summaries and MUST NOT place the full report into one prompt.
 - **FR-024**: System MUST isolate report jobs by anonymous browser session in
   the initial version; each session owns its report jobs, inputs, sources,
-  checkpoints, costs, and outputs.
-- **FR-025**: System MUST retain uploaded documents, intermediate artifacts,
-  checkpoints, and generated outputs only for the anonymous session unless the
-  user explicitly saves or exports final artifacts.
+  costs, and outputs.
+- **FR-025**: System MUST retain uploaded documents, intermediate artifacts, and
+  generated outputs only for the anonymous session unless the user explicitly
+  saves or exports final artifacts.
 - **FR-025a**: System MUST clean up report-scoped uploaded files and indexes
   after 7 days unless the user explicitly saved or exported the final artifacts.
 - **FR-026**: System MUST allow no more than three active report jobs per
@@ -295,11 +293,10 @@ or request fixes.
 ### Key Entities *(include if feature involves data)*
 
 - **Report Job**: A single report generation request, including topic, report
-  type, depth, status, checkpoints, usage estimates, actual usage, and final
+  type, depth, status, review state, usage estimates, actual usage, and final
   deliverables, owned by one anonymous browser session.
 - **Browser Session**: An anonymous user session that owns report jobs and
-  isolates inputs, sources, checkpoints, costs, and generated outputs from other
-  sessions.
+  isolates inputs, sources, costs, and generated outputs from other sessions.
 - **User Input Source**: An uploaded file or URL list entry supplied by the
   user, including type, validation status, source metadata, and extracted
   evidence references.
@@ -337,14 +334,14 @@ or request fixes.
   matching section structure and citations.
 - **SC-005**: Section-level regeneration changes only the selected section and
   preserves the rest of the report in at least 99% of regeneration attempts.
-- **SC-006**: Interrupted report jobs resume from the last completed checkpoint
-  without repeating completed steps in at least 95% of tested crash scenarios.
+- **SC-006**: Persisted report jobs can reload completed sections, sources, and
+  traces after the job manager is recreated.
 - **SC-007**: Concurrent report jobs keep inputs, sources, costs, and outputs
   isolated with zero observed cross-session leakage in test runs.
 - **SC-008**: Users can compare estimated and actual token usage for each
   completed report job.
 - **SC-009**: Investment Memo, Policy Brief, and Deep reports cannot be exported
-  until a human review checkpoint is completed.
+  until a human review gate is completed.
 - **SC-010**: Reports with unsourced claims cannot be exported, while reports
   with only low-confidence sourced claims remain exportable with visible
   warnings.
@@ -356,7 +353,8 @@ or request fixes.
   exported, while `PARTIALLY_SUPPORTED` and eligible `UNVERIFIED` claims are
   visible as warnings.
 - **SC-014**: A failed agent step after 3 retries leaves a visible failed job
-  state, preserved partial output, and a retry option from the last checkpoint.
+  state, preserved partial output, and a retry option that reruns the live
+  pipeline.
 - **SC-015**: Generated reports include bracket-key citations and a bibliography
   appendix.
 

@@ -1,9 +1,13 @@
 """FastAPI request and response schemas."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from schemas.costs import CostMetrics
 from schemas.reports import ReportDepth, ReportStatus, ReportType
+
+LLMProvider = Literal["gemini", "groq", "ollama", "kimi"]
 
 
 class CreateJobRequest(BaseModel):
@@ -15,7 +19,7 @@ class CreateJobRequest(BaseModel):
     type: ReportType
     depth: ReportDepth
     urls: list[str] = Field(default_factory=list)
-    provider: str = Field(default="gemini", pattern="^(gemini|groq|ollama|kimi)$")
+    provider: LLMProvider = "gemini"
 
 
 class CreateJobResponse(BaseModel):

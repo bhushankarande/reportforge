@@ -3,7 +3,7 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import JSON, DateTime, Float, Integer, String, Text, create_engine, func
+from sqlalchemy import JSON, Float, Integer, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from app.config import get_settings
@@ -27,6 +27,48 @@ class ReportJobRecord(Base):
     cost: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[str] = mapped_column(String)
     completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class JobInputRecord(Base):
+    """SQLite record for replayable job inputs."""
+
+    __tablename__ = "job_inputs"
+
+    job_id: Mapped[str] = mapped_column(String, primary_key=True)
+    provider: Mapped[str] = mapped_column(String, default="gemini")
+    urls: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
+class ReportSectionRecord(Base):
+    """SQLite record for generated report sections."""
+
+    __tablename__ = "report_sections"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, index=True)
+    title: Mapped[str] = mapped_column(Text)
+    content: Mapped[str] = mapped_column(Text, default="")
+    order_index: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    sources: Mapped[list[str]] = mapped_column(JSON, default=list)
+    claims: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+    charts: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
+class SourceRecord(Base):
+    """SQLite record for collected source evidence."""
+
+    __tablename__ = "sources"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, index=True)
+    title: Mapped[str] = mapped_column(Text)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    date: Mapped[str | None] = mapped_column(String, nullable=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    relevance_score: Mapped[float] = mapped_column(Float, default=0.0)
+    raw_text: Mapped[str] = mapped_column(Text, default="")
+    citation_key: Mapped[str] = mapped_column(String)
 
 
 class AgentTraceRecord(Base):
@@ -57,17 +99,6 @@ class QuotaCounterRecord(Base):
     date: Mapped[str] = mapped_column(String, index=True)
     requests: Mapped[int] = mapped_column(Integer, default=0)
     tokens: Mapped[int] = mapped_column(Integer, default=0)
-
-
-class CheckpointRecord(Base):
-    """SQLite checkpoint metadata with JSON payload."""
-
-    __tablename__ = "checkpoints"
-
-    key: Mapped[str] = mapped_column(String, primary_key=True)
-    job_id: Mapped[str] = mapped_column(String, index=True)
-    payload: Mapped[dict[str, object]] = mapped_column(JSON)
-    created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 def get_engine():

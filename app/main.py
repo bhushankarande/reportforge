@@ -3,10 +3,11 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.database import init_db
 from app.logging_config import configure_logging, get_logger
@@ -27,7 +28,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.model_router = ModelRouter()
     app.state.active_model = app.state.model_router.get_model()
     app.state.shutting_down = False
-    logger.info("app_started", provider=app.state.active_model.provider, model=app.state.active_model.model_name)
+    logger.info(
+        "app_started",
+        provider=app.state.active_model.provider,
+        model=app.state.active_model.model_name,
+    )
     yield
     app.state.shutting_down = True
     logger.info("app_shutdown")
@@ -48,10 +53,16 @@ def create_app() -> FastAPI:
     app.include_router(export.router)
     app.include_router(costs.router)
 
-    @app.exception_handler(404)
-    async def not_found_handler(_request: Request, exc: HTTPException) -> JSONResponse:
-        """Return normalized 404 errors."""
-        return JSONResponse(status_code=404, content={"detail": exc.detail})
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(
+        _request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        """Return normalized HTTP errors."""
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -76,7 +87,12 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str | bool]:
         """Return service health for Docker healthchecks."""
         model = ModelRouter().get_model()
-        return {"status": "ok", "provider": model.provider, "model": model.model_name, "model_ready": True}
+        return {
+            "status": "ok",
+            "provider": model.provider,
+            "model": model.model_name,
+            "model_ready": True,
+        }
 
     return app
 

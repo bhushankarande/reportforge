@@ -24,13 +24,13 @@ AgentScope, ChromaDB, rank-bm25, sentence-transformers, pymupdf, python-docx,
 pandas, openpyxl, unstructured fallback, matplotlib, plotly, Jinja2, WeasyPrint,
 structlog, tenacity, pytest, ruff
 
-**Storage**: SQLite for job state, traces, checkpoints, cost metrics, and
+**Storage**: SQLite for job state, sections, sources, traces, cost metrics, and
 artifact metadata. Local `storage/` for uploads, reports, charts, per-report
-indexes, LLM logs, and checkpoints. Docker Compose includes a Postgres service
-profile/path for V2 migration but MVP persistence remains SQLite.
+indexes, and LLM logs. Docker Compose includes a Postgres service profile/path
+for V2 migration but MVP persistence remains SQLite.
 
 **Testing**: pytest with mandatory tests for every agent and tool; contract tests
-for FastAPI endpoints; integration tests for workflow checkpoints, export gates,
+for FastAPI endpoints; integration tests for export gates, persistence,
 session isolation, and retry recovery.
 
 **Target Platform**: Local M1 Mac through Docker Compose with `linux/arm64`
@@ -61,7 +61,7 @@ adds Next.js, API key auth, Celery, Redis, real search, and production Kimi use.
 
 - Hexagonal boundaries: PASS. Business logic is under `agents/` and `tools/`.
   Framework adapters are under `app/` and `frontend/`. `orchestration/` owns
-  only workflow coordination, state machine, checkpoints, and AgentScope graph.
+  only live workflow coordination, job lifecycle, retry, and HITL flow.
 - Agent contracts: PASS. Each agent has a discrete module in `agents/` and
   Pydantic input/output schemas in `schemas/agent_outputs.py` or related schema
   modules. Agents do not call other agents directly.
@@ -79,8 +79,8 @@ adds Next.js, API key auth, Celery, Redis, real search, and production Kimi use.
   Markdown/PDF/DOCX exports use Jinja2 templates under `templates/`.
 - Operations: PASS. External API calls use tenacity retries with exponential
   backoff. Docker Compose targets local M1 Mac with `linux/arm64`.
-- Context and idempotency: PASS. Workflows check checkpoints before executing
-  side-effecting agent calls and enforce 180K prompt cap with rolling summaries.
+- Context and idempotency: PASS. The live pipeline has explicit retry behavior
+  and enforces 180K prompt cap with rolling summaries.
 - Typing and tests: PASS. Type hints are mandatory. `Any` in signatures requires
   justification. Every agent and tool receives corresponding tests.
 
@@ -127,10 +127,9 @@ frontend/
 └── streamlit_app.py
 
 orchestration/
-├── workflow.py
-├── state_machine.py
-├── checkpoints.py
-└── agentscope_graph.py
+├── job_manager.py
+├── cost_tracking.py
+└── hitl.py
 
 schemas/
 ├── reports.py
@@ -187,7 +186,6 @@ storage/
 ├── reports/
 ├── charts/
 ├── indexes/
-├── checkpoints/
 └── llm_logs/
 
 tests/

@@ -25,8 +25,17 @@ from typing import Callable, Iterable
 
 from app.logging_config import get_logger
 from schemas.agent_outputs import FormatterOutput
+from schemas.reports import ReportJob
+from schemas.sources import Source
 from tools.export.docx import write_docx
 from tools.export.pdf import write_pdf
+from tools.export.report import (
+    ExportArtifact,
+    MEDIA_TYPES,
+    export_filename,
+    normalize_export_format,
+    render_report_markdown,
+)
 
 logger = get_logger(__name__)
 
@@ -35,6 +44,47 @@ class FormatterAgent:
     """Render report artifacts for supported formats."""
 
     SUPPORTED_FORMATS = {"md", "pdf", "docx"}
+
+    def format_report(
+        self,
+        job: ReportJob,
+        sources: list[Source],
+        output_dir: str,
+        *,
+        export_format: str,
+    ) -> FormatterOutput:
+        """Render one report export through the shared export policy."""
+        normalized_format = normalize_export_format(export_format)
+        markdown = render_report_markdown(job, sources)
+        return self.format(job.id, markdown, output_dir, formats=[normalized_format])
+
+    def export_artifact(
+        self,
+        job: ReportJob,
+        sources: list[Source],
+        output_dir: str,
+        *,
+        export_format: str,
+    ) -> ExportArtifact:
+        """Render one report export and return artifact metadata."""
+        normalized_format = normalize_export_format(export_format)
+        output = self.format_report(
+            job,
+            sources,
+            output_dir,
+            export_format=normalized_format,
+        )
+        path_by_format = {
+            "md": output.markdown_path,
+            "pdf": output.pdf_path,
+            "docx": output.docx_path,
+        }
+        return ExportArtifact(
+            path=Path(path_by_format[normalized_format]),
+            format=normalized_format,
+            media_type=MEDIA_TYPES[normalized_format],
+            filename=export_filename(job, normalized_format),
+        )
 
     def format(
         self,
@@ -162,16 +212,11 @@ class FormatterAgent:
             "TBD",
         ]
 
-        found_markers = [
-            marker
-            for marker in unresolved_markers
-            if marker.lower() in clean.lower()
-        ]
+        found_markers = [marker for marker in unresolved_markers if marker.lower() in clean.lower()]
 
         if found_markers:
             raise ValueError(
-                "Cannot export report with unresolved placeholders: "
-                + ", ".join(found_markers)
+                "Cannot export report with unresolved placeholders: " + ", ".join(found_markers)
             )
 
         return clean + "\n"
@@ -181,11 +226,7 @@ class FormatterAgent:
         if formats is None:
             return set(self.SUPPORTED_FORMATS)
 
-        normalized = {
-            str(fmt).lower().strip().lstrip(".")
-            for fmt in formats
-            if str(fmt).strip()
-        }
+        normalized = {str(fmt).lower().strip().lstrip(".") for fmt in formats if str(fmt).strip()}
 
         if not normalized:
             raise ValueError("At least one export format must be requested.")

@@ -92,7 +92,7 @@ Single report generation request and lifecycle root.
 | failure_reason | str null | Required when failed |
 | approval_required | bool | True for Investment Memo, Policy Brief, Deep |
 | approved_at | datetime null | Required before export if approval required |
-| checkpoint_key | str null | Last completed checkpoint |
+| review_state | str null | Human approval state when export needs review |
 | chroma_collection | str | Per-report isolated collection id |
 
 State transitions:
@@ -102,7 +102,7 @@ State transitions:
 - `running -> completed`
 - `running -> failed`
 - `awaiting_approval -> completed`
-- `failed -> running` via retry from checkpoint
+- `failed -> running` via full pipeline retry
 
 ### ReportSection
 

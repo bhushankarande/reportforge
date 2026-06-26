@@ -40,10 +40,18 @@ class HybridRetriever:
         *,
         source_id: str,
         source_type: str = "unknown",
+        document_ids: list[str] | None = None,
     ) -> None:
         """Add documents to both vector and BM25 indexes."""
+        if document_ids is not None and len(document_ids) != len(documents):
+            raise ValueError("document_ids must match documents length")
+
         for index, document in enumerate(documents):
-            record_id = f"{self.job_id}-{source_id}-{index}"
+            record_id = (
+                document_ids[index]
+                if document_ids is not None
+                else f"{self.job_id}-{source_id}-{index}"
+            )
             self.vector_store.add_text(record_id, document, source_id, source_type)
             self.bm25_store.add_text(record_id, document, source_id, source_type)
 

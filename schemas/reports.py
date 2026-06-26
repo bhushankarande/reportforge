@@ -1,11 +1,14 @@
 """Report job and section schemas."""
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from schemas.costs import CostMetrics
 from schemas.sources import Claim
+
+SectionStatus = Literal["pending", "drafted", "blocked", "regenerated"]
 
 
 class ReportType(StrEnum):
@@ -48,7 +51,7 @@ class ReportSection(BaseModel):
     title: str
     content: str = ""
     order: int = Field(ge=0)
-    status: str = "pending"
+    status: SectionStatus = "pending"
     sources: list[str] = Field(default_factory=list)
     claims: list[Claim] = Field(default_factory=list)
     charts: list[str] = Field(default_factory=list)

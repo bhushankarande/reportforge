@@ -13,27 +13,9 @@ paths:
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              required: [topic, type, depth]
-              properties:
-                topic:
-                  type: string
-                type:
-                  $ref: "#/components/schemas/ReportType"
-                depth:
-                  $ref: "#/components/schemas/ReportDepth"
-                urls:
-                  type: array
-                  items:
-                    type: string
-                    format: uri
-                files:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
+              $ref: "#/components/schemas/CreateJobRequest"
       responses:
         "202":
           description: Job accepted
@@ -97,31 +79,79 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Source"
+  /jobs/{id}/uploads:
+    post:
+      summary: Upload documents and normalize them into job sources
+      operationId: uploadJobDocuments
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "201":
+          description: Uploaded documents indexed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job_id, files, source_ids, chunks_indexed]
+                properties:
+                  job_id:
+                    type: string
+                  files:
+                    type: array
+                    items:
+                      type: string
+                  source_ids:
+                    type: array
+                    items:
+                      type: string
+                  chunks_indexed:
+                    type: integer
   /jobs/{id}/regenerate-section:
     post:
       summary: Regenerate one report section with feedback
       operationId: regenerateSection
       parameters:
         - $ref: "#/components/parameters/JobId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [section_id, feedback]
-              properties:
-                section_id:
-                  type: string
-                feedback:
-                  type: string
+        - name: section_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: feedback
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "202":
           description: Section regeneration started
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/JobProgress"
+                type: object
+                required: [job_id, section_id, status, feedback]
+                properties:
+                  job_id:
+                    type: string
+                  section_id:
+                    type: string
+                  status:
+                    type: string
+                  feedback:
+                    type: string
   /jobs/{id}/export/{format}:
     get:
       summary: Download a verified export artifact
@@ -189,10 +219,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReportJobDetail"
+                type: object
+                required: [job_id, status]
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
   /jobs/{id}/retry:
     post:
-      summary: Resume from the last checkpoint after failure
+      summary: Retry a failed job by rerunning the live pipeline
       operationId: retryJob
       parameters:
         - $ref: "#/components/parameters/JobId"
@@ -202,7 +238,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/JobProgress"
+                type: object
+                required: [job_id, status]
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
 components:
   parameters:
     JobId:
@@ -212,6 +254,25 @@ components:
       schema:
         type: string
   schemas:
+    CreateJobRequest:
+      type: object
+      required: [topic, type, depth]
+      properties:
+        topic:
+          type: string
+          minLength: 3
+        type:
+          $ref: "#/components/schemas/ReportType"
+        depth:
+          $ref: "#/components/schemas/ReportDepth"
+        urls:
+          type: array
+          items:
+            type: string
+        provider:
+          type: string
+          enum: [gemini, groq, ollama, kimi]
+          default: gemini
     ReportType:
       type: string
       enum:
@@ -265,7 +326,7 @@ components:
             type: string
     ReportJobDetail:
       type: object
-      required: [id, topic, type, depth, status, sections, sources, cost]
+      required: [id, topic, type, depth, status, cost, created_at, session_id, sections]
       properties:
         id:
           type: string
@@ -277,20 +338,17 @@ components:
           $ref: "#/components/schemas/ReportDepth"
         status:
           type: string
-        approval_required:
-          type: boolean
-        approved_at:
+        created_at:
           type: string
-          format: date-time
+        completed_at:
+          type: string
           nullable: true
+        session_id:
+          type: string
         sections:
           type: array
           items:
             $ref: "#/components/schemas/ReportSection"
-        sources:
-          type: array
-          items:
-            $ref: "#/components/schemas/Source"
         cost:
           $ref: "#/components/schemas/CostMetrics"
     ReportSection:
@@ -346,9 +404,11 @@ components:
           type: string
     Claim:
       type: object
-      required: [id, text, source_ids, verification_status, confidence]
+      required: [id, section_id, text, source_ids, verification_status, confidence]
       properties:
         id:
+          type: string
+        section_id:
           type: string
         text:
           type: string

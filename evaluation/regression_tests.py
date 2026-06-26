@@ -3,10 +3,9 @@
 import os
 from pathlib import Path
 
+from agents.formatter_agent import FormatterAgent
 from app.config import Settings
 from app.services.job_registry import manager
-from orchestration.checkpoints import CheckpointStore
-from orchestration.state import WorkflowState
 from schemas.api import CreateJobRequest
 from schemas.reports import ReportDepth, ReportStatus, ReportType
 from tools.llm.model_router import ModelRouter, ProviderBlockedError
@@ -22,26 +21,15 @@ def end_to_end_topic_to_pdf(tmp_dir: str | Path) -> Path:
     )
     response = manager.create_job(request, session_id="regression")
     manager.execute(response.job_id)
-    markdown = manager.export_markdown(response.job_id)
-    from tools.export.pdf import write_pdf
-
-    path = write_pdf(markdown, Path(tmp_dir) / f"{response.job_id}.pdf")
-    if not path.exists():
+    artifact = FormatterAgent().export_artifact(
+        manager.get_job(response.job_id),
+        manager.list_sources(response.job_id),
+        str(tmp_dir),
+        export_format="pdf",
+    )
+    if not artifact.path.exists():
         raise AssertionError("PDF export was not created")
-    return path
-
-
-def checkpoint_resume_test(tmp_dir: str | Path) -> WorkflowState:
-    """Simulate checkpoint write and resume after interruption."""
-    store = CheckpointStore(Path(tmp_dir))
-    state = WorkflowState(job_id="resume-job")
-    state.mark_completed("planned")
-    store.save(state)
-    loaded = store.load("resume-job")
-    if loaded is None or loaded.completed_steps != ["planned"]:
-        raise AssertionError("Checkpoint resume failed")
-    loaded.mark_completed("completed")
-    return loaded
+    return artifact.path
 
 
 def cost_tracking_test(job_id: str) -> float:
