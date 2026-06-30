@@ -29,20 +29,17 @@ constitution requires AgentScope pipelines.
 
 ## Decision: Zero-Cost ModelRouter for Testing
 
-Rationale: `ModelRouter` reads `ACTIVE_LLM_PROVIDER` and enforces
-`MAX_COST_USD_PER_JOB=0.00`. Gemini 1.5 Flash is the default testing provider.
-Groq is a debug fallback for prompt iteration. Ollama supports offline unit
-testing. Kimi K2.6 remains architecturally supported but hard-blocked during
-zero-cost testing.
+Rationale: `ModelRouter` reads `ACTIVE_LLM_PROVIDER`. NVIDIA NIM DeepSeek is the
+default provider. Groq Qwen3-32B is the fallback for prompt iteration. Ollama
+supports offline unit testing.
 
 Alternatives considered: Direct provider imports in agents violate the
-constitution. Production Kimi as default violates the zero-cost testing phase.
+constitution.
 
 ## Decision: CostTrackingModel Wrapper
 
-Rationale: Every LLM call records actual cost, estimated Kimi-equivalent cost,
-tokens, latency, provider, model, prompt metadata, and raw response. Free-tier
-calls record `$0.00` actual cost while preserving migration planning data.
+Rationale: Every LLM call records actual cost, tokens, latency, provider, model,
+prompt metadata, and raw response. Free-tier calls record `$0.00` actual cost.
 
 Alternatives considered: Logging only aggregate job cost was rejected because
 debugging, compliance, and provider migration require call-level traces.

@@ -9,12 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.database import (
     AgentTraceRecord,
-    Base,
     JobInputRecord,
     ReportJobRecord,
     ReportSectionRecord,
     SessionLocal,
     SourceRecord,
+    sync_metadata_tables,
 )
 from schemas.costs import AgentTrace, CostMetrics
 from schemas.reports import ReportJob, ReportSection
@@ -49,7 +49,7 @@ class ReportStore:
     def _ensure_tables(self) -> None:
         """Create missing persistence tables for this store's database bind."""
         with self.session_factory() as session:
-            Base.metadata.create_all(bind=session.get_bind())
+            sync_metadata_tables(session.get_bind())
 
     def save_job(self, job: ReportJob) -> None:
         """Persist job metadata and generated sections."""
@@ -102,7 +102,6 @@ class ReportStore:
                     output=trace.output,
                     tokens=trace.tokens,
                     cost=float(trace.cost),
-                    estimated_kimi_cost_usd=float(trace.estimated_kimi_cost_usd),
                     latency=trace.latency_ms,
                     retry_attempt=trace.retry_attempt,
                     created_at=trace.timestamp,
@@ -137,7 +136,7 @@ class ReportStore:
                 sources=sources,
                 traces=traces,
                 urls=list(inputs.urls if inputs is not None else []),
-                provider=inputs.provider if inputs is not None else "gemini",
+                provider=self._provider_from_inputs(inputs.provider if inputs is not None else "nvidia"),
             )
 
     def _replace_sections(
@@ -219,7 +218,6 @@ class ReportStore:
                 output=record.output,
                 tokens=record.tokens,
                 cost=Decimal(str(record.cost)),
-                estimated_kimi_cost_usd=Decimal(str(record.estimated_kimi_cost_usd)),
                 latency_ms=record.latency,
                 retry_attempt=record.retry_attempt,
                 timestamp=record.created_at,
@@ -233,8 +231,8 @@ class ReportStore:
         return CostMetrics(
             prompt_tokens=sum(trace.tokens for trace in traces),
             estimated_cost_usd=Decimal(str(job_record.cost)),
-            estimated_kimi_cost_usd=sum(
-                (trace.estimated_kimi_cost_usd for trace in traces),
-                Decimal("0.00"),
-            ),
         )
+
+    @staticmethod
+    def _provider_from_inputs(provider: str) -> str:
+        return "nvidia" if provider == "gemini" else provider

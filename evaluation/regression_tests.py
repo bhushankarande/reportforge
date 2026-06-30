@@ -8,7 +8,7 @@ from app.config import Settings
 from app.services.job_registry import manager
 from schemas.api import CreateJobRequest
 from schemas.reports import ReportDepth, ReportStatus, ReportType
-from tools.llm.model_router import ModelRouter, ProviderBlockedError
+from tools.llm.model_router import ModelRouter
 from tools.llm.quota_manager import QuotaExceededError, QuotaLimits, QuotaManager
 
 
@@ -46,7 +46,7 @@ def provider_swap_test(provider: str) -> str:
     previous = os.environ.get("ACTIVE_LLM_PROVIDER")
     os.environ["ACTIVE_LLM_PROVIDER"] = provider
     try:
-        model = ModelRouter(Settings(ACTIVE_LLM_PROVIDER=provider, MAX_COST_USD_PER_JOB=1.0)).get_model()
+        model = ModelRouter(Settings(ACTIVE_LLM_PROVIDER=provider)).get_model()
         return model.provider
     finally:
         if previous is None:
@@ -54,22 +54,20 @@ def provider_swap_test(provider: str) -> str:
         else:
             os.environ["ACTIVE_LLM_PROVIDER"] = previous
 
-
-def kimi_cost_guard_test() -> bool:
-    """Verify Kimi is blocked when cost guard is zero."""
-    try:
-        ModelRouter(Settings(ACTIVE_LLM_PROVIDER="kimi", MAX_COST_USD_PER_JOB=0.0)).get_model()
-    except ProviderBlockedError:
-        return True
-    return False
-
-
 def quota_enforcement_test() -> bool:
-    """Simulate Gemini quota exhaustion and verify the next request is blocked."""
-    quota = QuotaManager(QuotaLimits(gemini_requests_per_day=1, groq_tokens_per_day=1_000_000))
-    quota.check_and_increment("gemini")
+    """Simulate NVIDIA NIM quota exhaustion and verify the next request is blocked."""
+    quota = QuotaManager(
+        QuotaLimits(
+            nvidia_requests_per_minute=1,
+            nvidia_requests_per_day=0,
+            groq_requests_per_minute=60,
+            groq_requests_per_day=1_000,
+            groq_tokens_per_day=500_000,
+        )
+    )
+    quota.check_and_increment("nvidia")
     try:
-        quota.check_and_increment("gemini")
+        quota.check_and_increment("nvidia")
     except QuotaExceededError:
         return True
     return False

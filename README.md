@@ -5,7 +5,7 @@ ReportForge is a local-first app for generating structured, citation-grounded bu
 ## Features
 
 - Generate reports from a topic, URLs, and uploaded files
-- Use Gemini, Groq, local Ollama, or guarded Kimi routing
+- Use NVIDIA NIM, Groq, or local Ollama routing
 - Review sources and progress
 - Approve human-review reports and regenerate sections
 - Export reports as Markdown, PDF, or DOCX
@@ -53,13 +53,13 @@ Open:
 Set the active provider in `.env`:
 
 ```text
-ACTIVE_LLM_PROVIDER=gemini
+ACTIVE_LLM_PROVIDER=nvidia
 ```
 
 Then add the matching API key:
 
 ```text
-GEMINI_API_KEY=your-key
+NVIDIA_API_KEY=your-key
 GROQ_API_KEY=your-key
 ```
 

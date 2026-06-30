@@ -123,7 +123,7 @@ def test_report_pipeline_runs_explicit_live_agent_sequence(monkeypatch):
     result = ReportPipeline().run(
         job=job,
         urls=["https://example.com/report"],
-        provider="gemini",
+        provider="nvidia",
         set_progress=lambda status, active_agent, step, percent: progress.append(active_agent),
         append_trace=lambda agent_name, input_text, output_text: traces.append(agent_name),
     )

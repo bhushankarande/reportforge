@@ -41,6 +41,19 @@ def test_report_store_loads_saved_job_sections_sources_and_traces(report_store):
     assert loaded.traces[0].agent_name == "VerifierAgent"
 
 
+def test_report_store_maps_legacy_gemini_inputs_to_nvidia(report_store):
+    job, sources, trace = _sample_report()
+    report_store.save_job_inputs(job.id, urls=["https://example.com/report"], provider="gemini")
+    report_store.save_job(job)
+    report_store.save_sources(job.id, sources)
+    report_store.add_trace(trace)
+
+    loaded = report_store.load_report(job.id)
+
+    assert loaded is not None
+    assert loaded.provider == "nvidia"
+
+
 def test_job_manager_rehydrates_saved_report_state(report_store):
     job, sources, trace = _sample_report()
     report_store.save_job_inputs(job.id, urls=["https://example.com/report"], provider="groq")
@@ -88,8 +101,7 @@ def _sample_report() -> tuple[ReportJob, list[Source], AgentTrace]:
         cost=CostMetrics(
             prompt_tokens=10,
             estimated_cost_usd=Decimal("0.00"),
-            estimated_kimi_cost_usd=Decimal("0.01"),
-            model_name="llama-3.3-70b-versatile",
+            model_name="qwen/qwen3-32b",
         ),
         created_at="2026-06-26T00:00:00+00:00",
         completed_at="2026-06-26T00:01:00+00:00",
@@ -112,7 +124,6 @@ def _sample_report() -> tuple[ReportJob, list[Source], AgentTrace]:
         input="claim",
         output="supported",
         tokens=10,
-        estimated_kimi_cost_usd=Decimal("0.01"),
         timestamp="2026-06-26T00:01:00+00:00",
     )
     return job, [source], trace

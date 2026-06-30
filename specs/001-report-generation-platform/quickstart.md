@@ -14,14 +14,18 @@ git --version
 Create or update `.env` in the project root:
 
 ```bash
-ACTIVE_LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-gemini-key-here
-GEMINI_MODEL_NAME=gemini-1.5-flash
+ACTIVE_LLM_PROVIDER=nvidia
+NVIDIA_API_KEY=your-nvidia-key-here
+NVIDIA_MODEL_NAME=deepseek-ai/deepseek-v4-flash
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 GROQ_API_KEY=
+GROQ_MODEL_NAME=qwen/qwen3-32b
 OLLAMA_MODEL_NAME=llama3.1:8b
-KIMI_API_KEY=
-MAX_COST_USD_PER_JOB=0.00
-ENABLE_COST_PREVIEW=true
+NVIDIA_REQUESTS_PER_MINUTE_LIMIT=40
+NVIDIA_DAILY_REQUEST_LIMIT=0
+GROQ_REQUESTS_PER_MINUTE_LIMIT=60
+GROQ_DAILY_REQUEST_LIMIT=1000
+GROQ_DAILY_TOKEN_LIMIT=500000
 ENABLE_TAVILY_SEARCH=false
 TAVILY_API_KEY=
 ENVIRONMENT=development
@@ -79,7 +83,7 @@ required for Phase 1.
 5. Upload one small PDF or CSV, or leave uploads empty.
 6. Start report generation.
 7. Confirm progress shows active agent and current step.
-8. Confirm cost dashboard shows zero actual cost and estimated Kimi cost.
+8. Confirm cost dashboard shows zero actual cost.
 9. Confirm source panel links claims to source ids and confidence scores.
 10. Export Markdown after verification passes.
 

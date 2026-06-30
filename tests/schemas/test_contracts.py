@@ -10,10 +10,10 @@ from schemas.reports import ReportDepth, ReportJob, ReportSection, ReportStatus,
 from schemas.sources import Claim, EvidenceChunk, Source, VerificationStatus
 
 
-def test_create_job_request_defaults_to_gemini_and_empty_urls():
+def test_create_job_request_defaults_to_nvidia_and_empty_urls():
     request = CreateJobRequest(topic="AI reporting", type="market_research", depth="standard")
 
-    assert request.provider == "gemini"
+    assert request.provider == "nvidia"
     assert request.urls == []
     assert request.type == ReportType.MARKET_RESEARCH
     assert request.depth == ReportDepth.STANDARD
@@ -98,7 +98,6 @@ def test_cost_metrics_total_tokens_and_bounds():
         prompt_tokens=12,
         completion_tokens=5,
         estimated_cost_usd=Decimal("0.00"),
-        estimated_kimi_cost_usd=Decimal("0.01"),
     )
 
     assert metrics.total_tokens == 17

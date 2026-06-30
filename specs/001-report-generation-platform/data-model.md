@@ -85,7 +85,6 @@ Single report generation request and lifecycle root.
 | status | JobStatus | Required |
 | cost | CostMetrics | Defaults to zero-cost metrics |
 | estimated_cost_usd | Decimal | Must respect configured cost guard |
-| estimated_kimi_cost_usd | Decimal | Computed for migration planning |
 | created_at | datetime | Required |
 | completed_at | datetime null | Set when completed |
 | failed_at | datetime null | Set when failed |
@@ -194,7 +193,6 @@ Trace for one agent execution step.
 | output | str | Serialized output payload or error |
 | tokens | int | Total tokens |
 | cost | Decimal | Actual cost, `$0.00` for free-tier |
-| estimated_kimi_cost_usd | Decimal | Computed migration estimate |
 | latency | int | Milliseconds |
 | timestamp | datetime | Required |
 | retry_attempt | int | 0-3 |
@@ -214,7 +212,6 @@ Cost accounting attached to report jobs and model calls.
 | estimated_cost_usd | Decimal | Actual provider cost estimate |
 | latency_ms | int | Non-negative |
 | model_name | str | Provider model name |
-| estimated_kimi_cost_usd | Decimal | Kimi migration estimate |
 
 ### ChartArtifact
 

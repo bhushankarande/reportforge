@@ -322,7 +322,7 @@ class JobManager:
         """Run the zero-cost MVP report workflow for an accepted job."""
         self._ensure_loaded(job_id)
         job = self.jobs[job_id]
-        provider = self.providers_by_job.get(job_id, "gemini")
+        provider = self.providers_by_job.get(job_id, "nvidia")
         try:
             result = self.pipeline.run(
                 job=job,
@@ -396,16 +396,10 @@ class JobManager:
         total_tokens = sum(
             trace.tokens for traces in self.traces_by_job.values() for trace in traces
         )
-        estimated_kimi = sum(
-            float(trace.estimated_kimi_cost_usd)
-            for traces in self.traces_by_job.values()
-            for trace in traces
-        )
         return {
             "job_count": len(self.jobs),
             "total_tokens": total_tokens,
             "actual_cost_usd": 0.0,
-            "estimated_kimi_cost_usd": estimated_kimi,
         }
 
     def _set_progress(
@@ -434,7 +428,6 @@ class JobManager:
     ) -> None:
         """Append an execution trace to memory and SQLite."""
         token_count = len(input_text.split()) + len(output_text.split())
-        estimated_kimi = Decimal(token_count) * Decimal("0.000002")
         trace = AgentTrace(
             id=str(uuid4()),
             job_id=job_id,
@@ -442,7 +435,6 @@ class JobManager:
             input=input_text,
             output=output_text,
             tokens=token_count,
-            estimated_kimi_cost_usd=estimated_kimi,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
         self.traces_by_job[job_id].append(trace)
@@ -453,20 +445,17 @@ class JobManager:
         """Aggregate per-trace token and estimated cost metrics for a job."""
         traces = self.traces_by_job[job_id]
         total_tokens = sum(trace.tokens for trace in traces)
-        estimated_kimi = sum((trace.estimated_kimi_cost_usd for trace in traces), Decimal("0.00"))
         settings = get_settings()
         provider = self.providers_by_job.get(job_id, settings.active_llm_provider)
         model_names = {
-            "gemini": settings.gemini_model_name,
+            "nvidia": settings.nvidia_model_name,
             "groq": settings.groq_model_name,
             "ollama": settings.ollama_model_name,
-            "kimi": settings.kimi_model_name,
         }
         return CostMetrics(
             prompt_tokens=total_tokens,
             completion_tokens=0,
             estimated_cost_usd=Decimal("0.00"),
-            estimated_kimi_cost_usd=estimated_kimi,
             model_name=model_names.get(provider, "unknown"),
         )
 

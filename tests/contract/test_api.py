@@ -15,7 +15,7 @@ def test_create_job_endpoint_returns_job_id():
             "topic": "AI reporting",
             "type": "market_research",
             "depth": "standard",
-            "provider": "gemini",
+            "provider": "nvidia",
         },
     )
 
@@ -31,7 +31,7 @@ def test_get_job_progress_endpoint_returns_status():
             "topic": "AI reporting",
             "type": "market_research",
             "depth": "standard",
-            "provider": "gemini",
+            "provider": "nvidia",
         },
     ).json()
 
@@ -61,7 +61,7 @@ def test_upload_endpoint_indexes_uploaded_documents(monkeypatch, tmp_path):
             "topic": "AI reporting",
             "type": "market_research",
             "depth": "standard",
-            "provider": "gemini",
+            "provider": "nvidia",
         },
     ).json()
 
@@ -112,7 +112,7 @@ def test_job_outputs_sources_sections_and_markdown_export(monkeypatch):
             "topic": "AI reporting",
             "type": "market_research",
             "depth": "standard",
-            "provider": "gemini",
+            "provider": "nvidia",
             "urls": ["https://example.com/ai-reporting?utm_source=test"],
         },
     ).json()
@@ -170,7 +170,7 @@ def test_quota_endpoint_returns_remaining_counts():
     response = client.get("/costs/quota")
 
     assert response.status_code == 200
-    assert "gemini_requests_remaining" in response.json()
+    assert "nvidia_requests_per_minute_remaining" in response.json()
 
 
 class _FakeExportManager:

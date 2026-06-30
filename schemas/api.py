@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from schemas.costs import CostMetrics
 from schemas.reports import ReportDepth, ReportStatus, ReportType
 
-LLMProvider = Literal["gemini", "groq", "ollama", "kimi"]
+LLMProvider = Literal["nvidia", "groq", "ollama"]
 
 
 class CreateJobRequest(BaseModel):
@@ -19,7 +19,7 @@ class CreateJobRequest(BaseModel):
     type: ReportType
     depth: ReportDepth
     urls: list[str] = Field(default_factory=list)
-    provider: LLMProvider = "gemini"
+    provider: LLMProvider = "nvidia"
 
 
 class CreateJobResponse(BaseModel):
@@ -30,7 +30,6 @@ class CreateJobResponse(BaseModel):
     job_id: str
     status: ReportStatus
     estimated_cost_usd: float = 0.0
-    estimated_kimi_cost_usd: float = 0.0
 
 
 class JobProgress(BaseModel):

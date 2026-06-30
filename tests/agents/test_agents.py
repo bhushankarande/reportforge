@@ -18,12 +18,12 @@ fake = Faker()
 
 class FakeRouter:
     def get_model(self, provider=None):
-        return RoutedModel(provider=provider or "gemini", model_name="gemini-1.5-flash")
+        return RoutedModel(provider=provider or "nvidia", model_name="deepseek-ai/deepseek-v4-flash")
 
 
 class JsonWriterModel:
-    provider = "gemini"
-    model_name = "gemini-test"
+    provider = "nvidia"
+    model_name = "nvidia-test"
 
     def __call__(self, prompt):
         return (
@@ -44,7 +44,7 @@ class JsonWriterRouter:
 
 
 class ContradictingVerifierModel:
-    provider = "gemini"
+    provider = "nvidia"
     model_name = "llama3.1:8b"
 
     def __call__(self, prompt):
@@ -138,8 +138,8 @@ def test_writer_uses_model_generated_content_when_available():
 
 def test_writer_does_not_repair_uncited_model_sentences():
     class MixedCitationModel:
-        provider = "gemini"
-        model_name = "gemini-test"
+        provider = "nvidia"
+        model_name = "nvidia-test"
 
         def __call__(self, prompt):
             return (
@@ -170,8 +170,8 @@ def test_writer_does_not_repair_uncited_model_sentences():
 
 def test_writer_expands_terse_model_output_to_paragraphs():
     class TerseModel:
-        provider = "gemini"
-        model_name = "gemini-test"
+        provider = "nvidia"
+        model_name = "nvidia-test"
 
         def __call__(self, prompt):
             return '{"content":"Short supported line. [Web1]"}'
@@ -201,8 +201,8 @@ def test_writer_expands_terse_model_output_to_paragraphs():
 
 def test_writer_fallback_filters_boilerplate_and_synthesizes_paragraphs():
     class TerseModel:
-        provider = "gemini"
-        model_name = "gemini-test"
+        provider = "nvidia"
+        model_name = "nvidia-test"
 
         def __call__(self, prompt):
             return '{"content":"Too short. [Web1]"}'
@@ -236,8 +236,8 @@ def test_writer_fallback_filters_boilerplate_and_synthesizes_paragraphs():
 
 def test_writer_fallback_respects_section_word_target():
     class TerseModel:
-        provider = "gemini"
-        model_name = "gemini-test"
+        provider = "nvidia"
+        model_name = "nvidia-test"
 
         def __call__(self, prompt):
             return '{"content":"Too short. [Web1]"}'
@@ -295,8 +295,8 @@ def test_writer_fallback_respects_section_word_target():
 
 def test_writer_rebalances_when_model_overuses_one_source():
     class OneSourceModel:
-        provider = "gemini"
-        model_name = "gemini-test"
+        provider = "nvidia"
+        model_name = "nvidia-test"
 
         def __call__(self, prompt):
             return (
@@ -420,9 +420,9 @@ def test_research_excerpt_filters_scraped_page_chrome():
     assert "language models" in excerpt
 
 
-def test_planner_agent_accepts_mocked_gemini_json_style_response():
+def test_planner_agent_accepts_mocked_nvidia_json_style_response():
     router = Mock()
-    router.get_model.return_value = RoutedModel(provider="gemini", model_name="gemini-1.5-flash")
+    router.get_model.return_value = RoutedModel(provider="nvidia", model_name="deepseek-ai/deepseek-v4-flash")
 
     output = PlannerAgent(router).plan("AI reporting", "technical_report", "deep")
 

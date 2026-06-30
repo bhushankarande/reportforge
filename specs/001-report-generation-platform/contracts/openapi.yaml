@@ -271,8 +271,8 @@ components:
             type: string
         provider:
           type: string
-          enum: [gemini, groq, ollama, kimi]
-          default: gemini
+          enum: [nvidia, groq, ollama]
+          default: nvidia
     ReportType:
       type: string
       enum:
@@ -291,15 +291,13 @@ components:
       enum: [SUPPORTED, PARTIALLY_SUPPORTED, UNSUPPORTED, CONTRADICTED, UNVERIFIED]
     CreateJobResponse:
       type: object
-      required: [job_id, status, estimated_cost_usd, estimated_kimi_cost_usd]
+      required: [job_id, status, estimated_cost_usd]
       properties:
         job_id:
           type: string
         status:
           type: string
         estimated_cost_usd:
-          type: number
-        estimated_kimi_cost_usd:
           type: number
     JobProgress:
       type: object
@@ -438,8 +436,6 @@ components:
           type: integer
         cost:
           type: number
-        estimated_kimi_cost_usd:
-          type: number
         latency:
           type: integer
         timestamp:
@@ -449,7 +445,7 @@ components:
           type: integer
     CostMetrics:
       type: object
-      required: [prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd, latency_ms, model_name, estimated_kimi_cost_usd]
+      required: [prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd, latency_ms, model_name]
       properties:
         prompt_tokens:
           type: integer
@@ -463,17 +459,13 @@ components:
           type: integer
         model_name:
           type: string
-        estimated_kimi_cost_usd:
-          type: number
     CostSummary:
       type: object
-      required: [job_count, total_tokens, actual_cost_usd, estimated_kimi_cost_usd]
+      required: [job_count, total_tokens, actual_cost_usd]
       properties:
         job_count:
           type: integer
         total_tokens:
           type: integer
         actual_cost_usd:
-          type: number
-        estimated_kimi_cost_usd:
           type: number

@@ -46,7 +46,6 @@ class CostTrackingModel:
             prompt_tokens=prompt_tokens,
             completion_tokens=len(response.split()),
             latency_ms=latency_ms,
-            actual_free_tier=self.model.provider in {"gemini", "groq", "ollama"},
         )
         logger.info(
             "llm_call",
@@ -54,7 +53,6 @@ class CostTrackingModel:
             model=self.model.model_name,
             tokens=cost.total_tokens,
             actual_cost=str(cost.estimated_cost_usd),
-            estimated_kimi_cost=str(cost.estimated_kimi_cost_usd),
             latency_ms=latency_ms,
         )
         return TrackedResponse(text=response, cost=cost)

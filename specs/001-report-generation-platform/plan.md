@@ -12,8 +12,7 @@ attach documents or URLs, and receive a verified report with source panel,
 progress tracking, cost dashboard, section regeneration, and Markdown/PDF/DOCX
 exports. The MVP uses FastAPI, Streamlit, AgentScope, SQLite, per-report Chroma
 collections, mock search with optional Tavily, and zero-cost LLM routing through
-Gemini/Groq/Ollama, while keeping Kimi K2.6 available behind cost guards for
-future production use.
+NVIDIA NIM/Groq/Ollama.
 
 ## Technical Context
 
@@ -44,8 +43,8 @@ five sources completes in under 15 minutes locally; progress status is visible
 within 5 seconds; section regeneration modifies only the selected section in 99%
 of attempts; failed jobs preserve retryable partial state after 3 retries.
 
-**Constraints**: `MAX_COST_USD_PER_JOB=0.00` hard-blocks paid providers during
-testing. No prompt may exceed 180K tokens despite model context claims. Long
+**Constraints**: No paid LLM provider is wired into the MVP. No prompt may exceed
+180K tokens despite model context claims. Long
 reports generate section by section with rolling summaries. Up to three active
 jobs per anonymous browser session. Report-scoped uploads and indexes are
 cleaned up after 7 days unless saved/exported.
@@ -53,7 +52,7 @@ cleaned up after 7 days unless saved/exported.
 **Scale/Scope**: MVP supports anonymous browser sessions, three active jobs per
 session, per-report isolated Chroma collections, mock search by default,
 optional Tavily search via env var, and BackgroundTasks for job execution. V2
-adds Next.js, API key auth, Celery, Redis, real search, and production Kimi use.
+adds Next.js, API key auth, Celery, Redis, and real search.
 
 ## Constitution Check
 
@@ -69,8 +68,8 @@ adds Next.js, API key auth, Celery, Redis, real search, and production Kimi use.
   `tools/llm/`; agents depend on abstractions only and do not import
   provider-specific clients.
 - Cost and trace logging: PASS. Every model call records token count, actual
-  cost, estimated Kimi cost, latency, provider, model, prompt metadata, and raw
-  response to `storage/` plus SQLite trace tables.
+  cost, latency, provider, model, prompt metadata, and raw response to
+  `storage/` plus SQLite trace tables.
 - Report integrity: PASS. Claims carry `source_ids`; `UNSUPPORTED` and
   `CONTRADICTED` claims block export; `PARTIALLY_SUPPORTED` and eligible
   `UNVERIFIED` claims warn.
@@ -222,7 +221,7 @@ CLARIFICATION` items remain.
 - Agent contracts: PASS. Planned modules include schema ownership and test
   coverage requirements.
 - Model abstraction and cost tracking: PASS. Planned zero-cost routing honors
-  `ACTIVE_LLM_PROVIDER`, `MAX_COST_USD_PER_JOB=0.00`, and estimated Kimi cost.
+  `ACTIVE_LLM_PROVIDER` and the zero-cost provider set.
 - Source-grounding: PASS. Claim status and export gates are explicit.
 - RAG/parsing/export discipline: PASS. RAG, parsing, and export locations match
   the constitution.

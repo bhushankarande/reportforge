@@ -3,7 +3,7 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import JSON, Float, Integer, String, Text, create_engine
+from sqlalchemy import JSON, Float, Integer, MetaData, String, Table, Text, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from app.config import get_settings
@@ -35,7 +35,7 @@ class JobInputRecord(Base):
     __tablename__ = "job_inputs"
 
     job_id: Mapped[str] = mapped_column(String, primary_key=True)
-    provider: Mapped[str] = mapped_column(String, default="gemini")
+    provider: Mapped[str] = mapped_column(String, default="nvidia")
     urls: Mapped[list[str]] = mapped_column(JSON, default=list)
 
 
@@ -83,7 +83,6 @@ class AgentTraceRecord(Base):
     output: Mapped[str] = mapped_column(Text)
     tokens: Mapped[int] = mapped_column(Integer, default=0)
     cost: Mapped[float] = mapped_column(Float, default=0.0)
-    estimated_kimi_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     latency: Mapped[int] = mapped_column(Integer, default=0)
     retry_attempt: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[str] = mapped_column(String)
@@ -116,7 +115,58 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 
 def init_db() -> None:
     """Create all SQLite tables."""
-    Base.metadata.create_all(bind=engine)
+    sync_metadata_tables(engine)
+
+
+def sync_metadata_tables(bind) -> None:
+    """Create tables and drop stale columns no longer present in ORM metadata."""
+    Base.metadata.create_all(bind=bind)
+    if bind.dialect.name != "sqlite":
+        return
+
+    for table in (AgentTraceRecord.__table__,):
+        _rebuild_table_without_extra_columns(bind, table)
+
+
+def _rebuild_table_without_extra_columns(bind, table: Table) -> None:
+    inspector = inspect(bind)
+    if table.name not in inspector.get_table_names():
+        return
+
+    actual_columns = {column["name"] for column in inspector.get_columns(table.name)}
+    expected_columns = [column.name for column in table.columns]
+    if actual_columns <= set(expected_columns):
+        return
+
+    missing_columns = [name for name in expected_columns if name not in actual_columns]
+    if missing_columns:
+        return
+
+    temp_name = f"__new_{table.name}"
+    temp_metadata = MetaData()
+    temp_table = table.to_metadata(temp_metadata, name=temp_name)
+    quoted_columns = ", ".join(_quote_identifier(bind, name) for name in expected_columns)
+
+    with bind.begin() as connection:
+        connection.execute(text(f"DROP TABLE IF EXISTS {_quote_identifier(bind, temp_name)}"))
+        temp_table.create(bind=connection)
+        connection.execute(
+            text(
+                f"INSERT INTO {_quote_identifier(bind, temp_name)} ({quoted_columns}) "
+                f"SELECT {quoted_columns} FROM {_quote_identifier(bind, table.name)}"
+            )
+        )
+        connection.execute(text(f"DROP TABLE {_quote_identifier(bind, table.name)}"))
+        connection.execute(
+            text(
+                f"ALTER TABLE {_quote_identifier(bind, temp_name)} "
+                f"RENAME TO {_quote_identifier(bind, table.name)}"
+            )
+        )
+
+
+def _quote_identifier(bind, identifier: str) -> str:
+    return bind.dialect.identifier_preparer.quote(identifier)
 
 
 def get_session() -> Generator[Session, None, None]:

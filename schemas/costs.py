@@ -15,7 +15,6 @@ class CostMetrics(BaseModel):
     estimated_cost_usd: Decimal = Field(default=Decimal("0.00"), ge=0)
     latency_ms: int = Field(default=0, ge=0)
     model_name: str = "unknown"
-    estimated_kimi_cost_usd: Decimal = Field(default=Decimal("0.00"), ge=0)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -36,7 +35,6 @@ class AgentTrace(BaseModel):
     output: str
     tokens: int = Field(default=0, ge=0)
     cost: Decimal = Field(default=Decimal("0.00"), ge=0)
-    estimated_kimi_cost_usd: Decimal = Field(default=Decimal("0.00"), ge=0)
     latency_ms: int = Field(default=0, ge=0)
     retry_attempt: int = Field(default=0, ge=0)
     timestamp: str
